@@ -1,0 +1,91 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { DailySales, Transaction } from '@/types';
+import { generateMonthlyReport, formatDate } from '@/lib/utils';
+
+export async function POST(request: NextRequest) {
+  try {
+    const { sales, transactions, month, year } = await request.json();
+
+    if (!process.env.NEXT_PUBLIC_GOOGLE_SHEET_ID) {
+      return NextResponse.json(
+        { error: 'Google Sheets ID not configured. See DEPLOYMENT_GUIDE.md for setup.' },
+        { status: 400 }
+      );
+    }
+
+    const spreadsheetId = process.env.NEXT_PUBLIC_GOOGLE_SHEET_ID;
+    const monthName = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
+
+    // Prepare data (formatted for manual copy-paste or API call)
+    const expenses = transactions.filter((t: Transaction) => t.type === 'expense');
+    const payouts = transactions.filter((t: Transaction) => t.type === 'payout');
+    const summary = generateMonthlyReport(sales, transactions, month, year);
+
+    // Format data as structured objects
+    const salesData = sales.map((s: DailySales) => ({
+      Date: formatDate(s.date),
+      'Square Sales': s.squareSales,
+      'Cash Collected': s.cashCollected,
+      Total: s.squareSales + s.cashCollected,
+      Notes: s.notes || '',
+      'Cash Holder': s.cashHolder || '',
+    }));
+
+    const expensesData = expenses.map((e: Transaction) => ({
+      Date: formatDate(e.date),
+      Category: e.category || '',
+      Description: e.description || '',
+      Amount: e.amount,
+      'Payment Method': e.paymentMethod,
+      'Spent By': e.spentBy || '',
+      Notes: e.notes || '',
+    }));
+
+    const payoutsData = payouts.map((p: Transaction) => ({
+      Date: formatDate(p.date),
+      Payee: p.payeeName || '',
+      Purpose: p.purpose || '',
+      Amount: p.amount,
+      'Payment Method': p.paymentMethod,
+      Notes: p.notes || '',
+    }));
+
+    const summaryData = {
+      Month: monthName,
+      'Total Sales': summary.totalIncome,
+      'Total Expenses': summary.totalExpenses,
+      'Total Payouts': summary.totalPayouts,
+      'Net Profit': summary.netCash,
+      'Square Sales': summary.squareSales,
+      'Cash Collected': summary.unreportedCash,
+    };
+
+    // TODO: Implement actual Google Sheets API sync when OAuth is configured
+    // For now, return the formatted data for manual entry or future integration
+    
+    console.log('Data prepared for Google Sheets sync:', {
+      sales: salesData,
+      expenses: expensesData,
+      payouts: payoutsData,
+      summary: summaryData,
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `Data prepared for ${monthName}. Configure Google Sheets OAuth in DEPLOYMENT_GUIDE.md to enable automatic sync.`,
+      sheetsUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
+      data: {
+        sales: salesData,
+        expenses: expensesData,
+        payouts: payoutsData,
+        summary: summaryData,
+      },
+    });
+  } catch (error) {
+    console.error('Sync to Google Sheets error:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
+  }
+}

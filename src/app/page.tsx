@@ -1,65 +1,119 @@
-import Image from "next/image";
+'use client';
+
+import Link from 'next/link';
+import { BarChart3, DollarSign, CreditCard, TrendingDown, ArrowRight } from 'lucide-react';
 
 export default function Home() {
+  const features = [
+    {
+      icon: BarChart3,
+      title: 'Dashboard',
+      description: 'View monthly revenue & expense overview at a glance',
+      href: '/dashboard',
+      color: 'bg-blue-50 text-blue-600',
+    },
+    {
+      icon: DollarSign,
+      title: 'Daily Sales',
+      description: 'Track Square sales and unreported cash collections',
+      href: '/sales',
+      color: 'bg-green-50 text-green-600',
+    },
+    {
+      icon: CreditCard,
+      title: 'Expenses',
+      description: 'Manage business expenses from bank statements',
+      href: '/expenses',
+      color: 'bg-orange-50 text-orange-600',
+    },
+    {
+      icon: TrendingDown,
+      title: 'Cash Payouts',
+      description: 'Track cash disbursements and payouts',
+      href: '/payouts',
+      color: 'bg-red-50 text-red-600',
+    },
+  ];
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <main className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+      <div className="max-w-6xl mx-auto px-4 py-16">
+        {/* Header */}
+        <div className="text-center mb-16">
+          <h1 className="text-5xl font-bold text-gray-900 mb-4">
+            Persis Indian Grill
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-xl text-gray-600 mb-8">
+            Monthly Revenue & Expense Management
+          </p>
+          <p className="text-gray-600 max-w-2xl mx-auto">
+            Streamline your financial tracking with daily sales recording, expense management, 
+            and seamless Google Sheets integration for comprehensive monthly reporting.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* Features Grid */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          {features.map(feature => {
+            const Icon = feature.icon;
+            return (
+              <Link key={feature.href} href={feature.href}>
+                <div className="group h-full bg-white rounded-lg shadow hover:shadow-lg transition-all p-6 cursor-pointer hover:scale-105">
+                  <div className={`inline-block p-3 rounded-lg ${feature.color} mb-4 group-hover:scale-110 transition-transform`}>
+                    <Icon size={24} />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    {feature.title}
+                  </h3>
+                  <p className="text-gray-600 text-sm mb-4">
+                    {feature.description}
+                  </p>
+                  <div className="flex items-center text-blue-600 group-hover:translate-x-1 transition-transform">
+                    <span className="text-sm font-medium">Get started</span>
+                    <ArrowRight size={16} className="ml-2" />
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
         </div>
-      </main>
-    </div>
+
+        {/* Quick Stats */}
+        <div className="bg-white rounded-lg shadow p-8 mb-12">
+          <h2 className="text-2xl font-semibold text-gray-900 mb-6">Key Features</h2>
+          <div className="grid md:grid-cols-3 gap-8">
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-2">Local Storage</h3>
+              <p className="text-gray-600 text-sm">
+                All data is stored locally in your browser for quick access and privacy.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-2">Google Sheets Sync</h3>
+              <p className="text-gray-600 text-sm">
+                Sync your data with Google Sheets for backup and additional analysis.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-2">Export Reports</h3>
+              <p className="text-gray-600 text-sm">
+                Export monthly reports as CSV or JSON for accounting and record-keeping.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* CTA */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-lg p-8 text-center text-white">
+          <h2 className="text-3xl font-bold mb-4">Start Managing Your Revenue Today</h2>
+          <p className="text-blue-100 mb-6">
+            Navigate to any section above to begin tracking your business finances.
+          </p>
+          <Link href="/dashboard" className="inline-block bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
+            Go to Dashboard →
+          </Link>
+        </div>
+      </div>
+    </main>
   );
 }
