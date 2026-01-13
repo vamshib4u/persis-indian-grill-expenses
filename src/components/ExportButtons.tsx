@@ -50,7 +50,7 @@ export function ExportButtons({ sales, transactions, month, year }: ExportButton
 
   const handleSyncToGoogleSheets = async () => {
     if (!process.env.NEXT_PUBLIC_GOOGLE_SHEET_ID) {
-      toast.error('Google Sheets not configured. Check DEPLOYMENT_GUIDE.md');
+      toast.error('Google Sheets not configured. Check IMPORT_JSON_TO_SHEETS.md');
       return;
     }
 
@@ -71,10 +71,15 @@ export function ExportButtons({ sales, transactions, month, year }: ExportButton
         throw new Error(await response.text());
       }
 
-      toast.success('Data synced to Google Sheets!');
+      const result = await response.json();
+      
+      // Open Google Sheet in new tab
+      window.open(result.sheetsUrl, '_blank');
+      
+      toast.success('Opening Google Sheets... Download JSON and import using File → Import');
     } catch (error) {
       console.error('Sync error:', error);
-      toast.error(`Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsSyncing(false);
     }

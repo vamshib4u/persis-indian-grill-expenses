@@ -72,8 +72,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Data prepared for ${monthName}. Configure Google Sheets OAuth in DEPLOYMENT_GUIDE.md to enable automatic sync.`,
+      message: `Data prepared for ${monthName}. Download the JSON file from the app and import it to Google Sheets using File → Import.`,
       sheetsUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
+      importGuide: 'See IMPORT_JSON_TO_SHEETS.md for instructions on how to import downloaded JSON to your Google Sheet.',
       data: {
         sales: salesData,
         expenses: expensesData,
