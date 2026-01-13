@@ -99,6 +99,36 @@ export function ExportButtons({ sales, transactions, month, year }: ExportButton
     toast.success(`Downloaded ${filename}`);
   };
 
+  const handleSaveToGitHub = async () => {
+    setIsSyncing(true);
+    try {
+      const response = await fetch('/api/save-to-github', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sales,
+          transactions,
+          month,
+          year,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const result = await response.json();
+      toast.success(`✅ Data saved to GitHub!`);
+      console.log('GitHub save result:', result);
+    } catch (error) {
+      console.error('GitHub save error:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Failed: ${errorMsg}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const handleSyncToGoogleSheets = async () => {
     if (!process.env.NEXT_PUBLIC_GOOGLE_SHEET_ID) {
       toast.error('Google Sheets not configured. Check IMPORT_JSON_TO_SHEETS.md');
@@ -216,14 +246,26 @@ export function ExportButtons({ sales, transactions, month, year }: ExportButton
 
       <div>
         <p className="text-sm text-gray-600 mb-2">Cloud Backup:</p>
-        <button
-          onClick={handleSyncToGoogleSheets}
-          disabled={isSyncing}
-          className="flex items-center gap-2 px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition disabled:opacity-50"
-        >
-          {isSyncing ? <Loader size={16} className="animate-spin" /> : <Share2 size={16} />}
-          <span className="text-sm">{isSyncing ? 'Opening...' : 'Open Google Sheets'}</span>
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handleSaveToGitHub}
+            disabled={isSyncing}
+            className="flex items-center gap-2 px-3 py-2 bg-slate-50 text-slate-700 rounded-lg hover:bg-slate-100 transition disabled:opacity-50"
+            title="Save data to GitHub repository"
+          >
+            {isSyncing ? <Loader size={16} className="animate-spin" /> : <Share2 size={16} />}
+            <span className="text-sm">{isSyncing ? 'Saving...' : 'Save to GitHub'}</span>
+          </button>
+          <button
+            onClick={handleSyncToGoogleSheets}
+            disabled={isSyncing}
+            className="flex items-center gap-2 px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition disabled:opacity-50"
+            title="Open Google Sheets"
+          >
+            {isSyncing ? <Loader size={16} className="animate-spin" /> : <Share2 size={16} />}
+            <span className="text-sm">{isSyncing ? 'Opening...' : 'Open Google Sheets'}</span>
+          </button>
+        </div>
       </div>
     </div>
   );
