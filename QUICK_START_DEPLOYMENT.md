@@ -71,6 +71,18 @@ Your app will be live at a URL like: `https://persis-expenses-YOUR-NAME.vercel.a
 
 ## Step 4: Configure Google Sheets API (Optional - Advanced)
 
+**Quick client-side option:** If you only have a Google OAuth **Client ID**, you can use the in-app Connect button (no server setup). Add `NEXT_PUBLIC_GOOGLE_CLIENT_ID` to your environment and follow the instructions in `IMPORT_JSON_TO_SHEETS.md` to connect and save/load data from the configured sheet.
+
+**Server-side OAuth (recommended for scheduled sync):**
+
+If you want persistent access (refresh tokens) and scheduled syncs, use server-side OAuth and add the following env vars to your deployment environment (do NOT expose these in client-side envs):
+
+- `GOOGLE_CLIENT_ID` = *your OAuth client id*
+- `GOOGLE_CLIENT_SECRET` = *your OAuth client secret*
+- `GOOGLE_OAUTH_REDIRECT` = *optional custom redirect (default: https://your-app-domain/api/google/callback)*
+
+Once these are set, visit the app **Export → Google Sheets (Direct)** and click **Connect (Server-side OAuth)** to authorize the server. The server stores the refresh token in a local file `.persist/google_tokens.json` (for production, use a secrets manager). You can then trigger a server sync programmatically via POST `/api/google/sync` (body: `{sales, transactions, month, year, spreadsheetId?}`) or schedule it using GitHub Actions / Vercel Cron / other schedulers.
+
 For **automatic** sync to Google Sheets, see `DEPLOYMENT_GUIDE.md` for:
 - Creating a Google Cloud project
 - Setting up OAuth 2.0 credentials

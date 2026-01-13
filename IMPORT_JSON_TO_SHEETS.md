@@ -52,6 +52,25 @@ If you need CSV format instead:
 ## Part 3: Automatic Google Sheets Sync (Future Feature)
 
 Currently, the **"Google Sheets"** button shows:
+
+### Quick Client-side OAuth (new)
+
+You can now connect directly from the app using your **Google OAuth Client ID**. This performs a user-authorized connection (access token) and lets you save or load the current month data directly to/from the configured Google Sheet.
+
+Steps:
+
+1. In the Google Cloud Console, create an **OAuth 2.0 Client ID** (Application type: Web application).
+2. Add your app origin to *Authorized JavaScript origins* (e.g., `http://localhost:3000` for local development and your deployment URL for production).
+3. Add the following environment variables to your deployment or `.env.local`:
+   - `NEXT_PUBLIC_GOOGLE_CLIENT_ID` = *your client id*
+   - `NEXT_PUBLIC_GOOGLE_SHEET_ID` = *your spreadsheet id (optional if already set)*
+4. Restart the dev server and open the app. In **Export → Google Sheets (Direct)** click **Connect Google**, then **Save to Sheets** or **Load from Sheets**.
+
+Notes:
+
+- This client-side flow uses an **access token** (short-lived). If you want persistent server-side access with refresh tokens, see the advanced server-side OAuth section in `DEPLOYMENT_GUIDE.md`.
+- The app writes to these tabs: `Sales`, `Expenses`, `Payouts`, and `Summary`. Ensure those sheets exist (the app will overwrite the ranges `A1` onward).
+
 - ✅ Button is functional
 - ✅ API endpoint is ready
 - ⏳ Waiting for OAuth configuration

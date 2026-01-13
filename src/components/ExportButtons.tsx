@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Download, Share2, Loader, FileJson, FileSpreadsheet } from 'lucide-react';
+import { GoogleSheetsControls } from './GoogleSheetsControls';
 import { toast } from 'react-hot-toast';
 import { DailySales, Transaction } from '@/types';
 import { exportSalesToJSON, exportTransactionsToJSON, generateMonthlyReport } from '@/lib/utils';
@@ -265,6 +266,20 @@ export function ExportButtons({ sales, transactions, month, year }: ExportButton
             {isSyncing ? <Loader size={16} className="animate-spin" /> : <Share2 size={16} />}
             <span className="text-sm">{isSyncing ? 'Opening...' : 'Open Google Sheets'}</span>
           </button>
+        </div>
+
+        {/* Google OAuth & direct Sheets API */}
+        <div className="mt-4">
+          <p className="text-sm text-gray-600 mb-2">Google Sheets (Direct):</p>
+          <div className="flex flex-wrap gap-2">
+            {/* Connect / Disconnect */}
+            <GoogleSheetsControls
+              sales={sales}
+              transactions={transactions}
+              month={month}
+              year={year}
+            />
+          </div>
         </div>
       </div>
     </div>
