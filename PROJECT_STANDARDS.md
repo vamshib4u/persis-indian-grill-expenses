@@ -74,7 +74,8 @@ The app tracks daily sales, expenses, and payouts, provides monthly summaries, a
   - Sales key: `persis_sales_data`
   - Transactions key: `persis_transactions_data`
 - OAuth tokens: stored server-side in `.persist/google_tokens.json`
-  - Note: Vercel serverless storage is ephemeral. Use a DB/KV for production persistence.
+  - In production, uses Vercel KV when configured via `KV_URL` or `VERCEL_KV_REST_API_URL`.
+  - Note: Vercel serverless filesystem is ephemeral. KV is required for persistent server-side tokens.
 
 ## Google Sheets Integration
 - Sales/Expenses/Payouts are written to master tabs with a `Month` column.
@@ -120,4 +121,3 @@ Optional:
   - `VERCEL_DEPLOY.md`
   - `DEPLOYMENT_GUIDE.md`
   - `GITHUB_AND_SHEETS_SETUP.md`
-
