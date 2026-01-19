@@ -42,7 +42,7 @@ export async function exchangeCodeForTokens(code: string, redirectUri: string) {
 
   const res = await fetch(TOKEN_ENDPOINT, { method: 'POST', body: params });
   if (!res.ok) throw new Error(`Token exchange failed: ${res.status} ${await res.text()}`);
-  const tokens = await res.json();
+  const tokens = (await res.json()) as Record<string, unknown>;
   await saveTokens(tokens);
   return tokens;
 }
