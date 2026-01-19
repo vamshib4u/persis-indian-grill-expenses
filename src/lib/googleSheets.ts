@@ -19,6 +19,25 @@ type SheetsValuesResponse = {
   values?: string[][];
 };
 
+type OAuthTokens = {
+  access_token?: string;
+  refresh_token?: string;
+  expires_at?: number;
+  expires_in?: number;
+  [key: string]: unknown;
+};
+
+const normalizeTokens = (raw: Record<string, unknown> | null): OAuthTokens | null => {
+  if (!raw) return null;
+  return {
+    ...raw,
+    access_token: typeof raw.access_token === 'string' ? raw.access_token : undefined,
+    refresh_token: typeof raw.refresh_token === 'string' ? raw.refresh_token : undefined,
+    expires_at: typeof raw.expires_at === 'number' ? raw.expires_at : undefined,
+    expires_in: typeof raw.expires_in === 'number' ? raw.expires_in : undefined,
+  };
+};
+
 // Existing API-key based helpers (kept for client-side fallbacks)
 export const sheetsConfig = {
   spreadsheetId: process.env.NEXT_PUBLIC_GOOGLE_SHEET_ID || '',
@@ -48,7 +67,7 @@ export async function exchangeCodeForTokens(code: string, redirectUri: string) {
 }
 
 export async function refreshAccessToken() {
-  const tokens = await loadTokens();
+  const tokens = normalizeTokens(await loadTokens());
   if (!tokens || !tokens.refresh_token) {
     throw new Error('No refresh token available - please re-authorize');
   }
@@ -71,7 +90,7 @@ export async function refreshAccessToken() {
 }
 
 export async function getAccessToken(): Promise<string> {
-  const tokens = await loadTokens();
+  const tokens = normalizeTokens(await loadTokens());
   if (!tokens) throw new Error('Not authorized');
 
   // If access token expired or missing, refresh
