@@ -4,7 +4,12 @@ import { generateMonthlyReport, formatDate } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
-    const { sales, transactions, month, year } = await request.json();
+    const { sales, transactions, month, year } = (await request.json()) as {
+      sales: DailySales[];
+      transactions: Transaction[];
+      month: number;
+      year: number;
+    };
 
     if (!process.env.NEXT_PUBLIC_GOOGLE_SHEET_ID) {
       return NextResponse.json(
@@ -66,12 +71,12 @@ export async function POST(request: NextRequest) {
       'Cash Collected': summary.unreportedCash,
     };
 
-    const cashHolderTotals = sales.reduce((acc: Record<string, number>, s) => {
+    const cashHolderTotals = sales.reduce((acc: Record<string, number>, s: DailySales) => {
       const holder = s.cashHolder?.trim() || 'Unassigned';
       acc[holder] = (acc[holder] || 0) + (s.cashCollected || 0);
       return acc;
     }, {} as Record<string, number>);
-    const totalCashCollected = sales.reduce((sum, s) => sum + (s.cashCollected || 0), 0);
+    const totalCashCollected = sales.reduce((sum, s: DailySales) => sum + (s.cashCollected || 0), 0);
     const cashHolderSummary = Object.entries(cashHolderTotals).map(([holder, total]) => ({
       'Cash Holder': holder,
       'Cash Collected': total,
