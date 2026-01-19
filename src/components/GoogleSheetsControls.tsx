@@ -93,7 +93,7 @@ export function GoogleSheetsControls({ sales, transactions, month, year }: Props
   const ensureTokenClient = () => {
     if (tokenClientRef.current) return tokenClientRef.current;
     const client = (window as GoogleWindow).google?.accounts?.oauth2?.initTokenClient?.({
-      client_id: clientId,
+      client_id: clientId ?? '',
       scope: 'https://www.googleapis.com/auth/spreadsheets',
       callback: (resp: GoogleTokenResponse) => {
         if (resp && resp.access_token) {
