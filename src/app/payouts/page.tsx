@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { Transaction } from '@/types';
 import { PayoutsList } from '@/components/PayoutsList';
 import { PayoutForm } from '@/components/PayoutForm';
@@ -11,17 +11,14 @@ import { formatCurrency } from '@/lib/utils';
 import { endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function PayoutsPage() {
-  const [payouts, setPayouts] = useState<Transaction[]>([]);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [editingPayout, setEditingPayout] = useState<Transaction | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
-  useEffect(() => {
-    loadPayouts();
-  }, [currentMonth, currentYear]);
-
-  const loadPayouts = () => {
+  const payouts = useMemo(() => {
+    void refreshKey;
     const allPayouts = storage.getPayouts();
     const monthStart = new Date(currentYear, currentMonth, 1);
     const monthEnd = endOfMonth(monthStart);
@@ -29,8 +26,8 @@ export default function PayoutsPage() {
     const monthlyPayouts = allPayouts.filter(payout =>
       isWithinInterval(new Date(payout.date), { start: monthStart, end: monthEnd })
     );
-    setPayouts(monthlyPayouts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-  };
+    return monthlyPayouts.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [currentMonth, currentYear, refreshKey]);
 
   const handleAddPayout = (payout: Transaction) => {
     if (editingPayout) {
@@ -41,7 +38,7 @@ export default function PayoutsPage() {
       storage.addPayout(payout);
       toast.success('Payout recorded successfully');
     }
-    loadPayouts();
+    setRefreshKey(key => key + 1);
     setShowForm(false);
   };
 
@@ -53,9 +50,9 @@ export default function PayoutsPage() {
   const handleDeletePayout = (id: string) => {
     if (window.confirm('Are you sure you want to delete this payout?')) {
       storage.deletePayout(id);
-      loadPayouts();
-      toast.success('Payout deleted');
-    }
+    setRefreshKey(key => key + 1);
+    toast.success('Payout deleted');
+  }
   };
 
   const handlePreviousMonth = () => {

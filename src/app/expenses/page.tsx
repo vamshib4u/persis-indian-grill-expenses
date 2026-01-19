@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { Transaction } from '@/types';
 import { ExpensesList } from '@/components/ExpensesList';
 import { ExpenseForm } from '@/components/ExpenseForm';
@@ -11,17 +11,14 @@ import { formatCurrency } from '@/lib/utils';
 import { endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function ExpensesPage() {
-  const [expenses, setExpenses] = useState<Transaction[]>([]);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Transaction | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
-  useEffect(() => {
-    loadExpenses();
-  }, [currentMonth, currentYear]);
-
-  const loadExpenses = () => {
+  const expenses = useMemo(() => {
+    void refreshKey;
     const allExpenses = storage.getExpenses();
     const monthStart = new Date(currentYear, currentMonth, 1);
     const monthEnd = endOfMonth(monthStart);
@@ -29,8 +26,8 @@ export default function ExpensesPage() {
     const monthlyExpenses = allExpenses.filter(expense =>
       isWithinInterval(new Date(expense.date), { start: monthStart, end: monthEnd })
     );
-    setExpenses(monthlyExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-  };
+    return monthlyExpenses.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [currentMonth, currentYear, refreshKey]);
 
   const handleAddExpense = (expense: Transaction) => {
     if (editingExpense) {
@@ -41,7 +38,7 @@ export default function ExpensesPage() {
       storage.addExpense(expense);
       toast.success('Expense recorded successfully');
     }
-    loadExpenses();
+    setRefreshKey(key => key + 1);
     setShowForm(false);
   };
 
@@ -53,9 +50,9 @@ export default function ExpensesPage() {
   const handleDeleteExpense = (id: string) => {
     if (window.confirm('Are you sure you want to delete this expense?')) {
       storage.deleteExpense(id);
-      loadExpenses();
-      toast.success('Expense deleted');
-    }
+    setRefreshKey(key => key + 1);
+    toast.success('Expense deleted');
+  }
   };
 
   const handlePreviousMonth = () => {

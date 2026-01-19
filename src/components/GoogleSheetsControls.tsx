@@ -6,6 +6,33 @@ import { toast } from 'react-hot-toast';
 import { DailySales, Transaction } from '@/types';
 import { formatDate } from '@/lib/utils';
 
+type GoogleTokenResponse = {
+  access_token?: string;
+};
+
+type GoogleTokenClient = {
+  requestAccessToken: (options?: { prompt?: string }) => void;
+};
+
+type GoogleAccounts = {
+  oauth2?: {
+    initTokenClient?: (options: {
+      client_id: string;
+      scope: string;
+      callback: (resp: GoogleTokenResponse) => void;
+    }) => GoogleTokenClient;
+  };
+};
+
+type GoogleWindow = Window & {
+  google?: {
+    accounts?: GoogleAccounts;
+  };
+};
+
+type SheetValue = string | number | boolean | null;
+type SheetValues = SheetValue[][];
+
 interface Props {
   sales: DailySales[];
   transactions: Transaction[];
@@ -16,11 +43,10 @@ interface Props {
 export function GoogleSheetsControls({ sales, transactions, month, year }: Props) {
   const [isLoadingScript, setIsLoadingScript] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
-  const tokenClientRef = useRef<any>(null);
+  const tokenClientRef = useRef<GoogleTokenClient | null>(null);
 
   const sheetId = process.env.NEXT_PUBLIC_GOOGLE_SHEET_ID;
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-  const serverOauthAvailable = typeof window !== 'undefined';
 
   const openServerOAuth = () => {
     window.open('/api/google/oauth', '_blank');
@@ -45,23 +71,12 @@ export function GoogleSheetsControls({ sales, transactions, month, year }: Props
     }
   };
 
-  const checkServerStatus = async () => {
-    try {
-      const res = await fetch('/api/google/status');
-      if (!res.ok) return null;
-      return res.json();
-    } catch (e) {
-      return null;
-    }
-  };
-
-
   useEffect(() => {
     if (!clientId) return;
     if (typeof window === 'undefined') return;
 
     // Load GIS script if not already present
-    if (!(window as any).google) {
+    if (!((window as GoogleWindow).google)) {
       setIsLoadingScript(true);
       const script = document.createElement('script');
       script.src = 'https://accounts.google.com/gsi/client';
@@ -77,10 +92,10 @@ export function GoogleSheetsControls({ sales, transactions, month, year }: Props
 
   const ensureTokenClient = () => {
     if (tokenClientRef.current) return tokenClientRef.current;
-    const client = (window as any).google?.accounts?.oauth2?.initTokenClient({
+    const client = (window as GoogleWindow).google?.accounts?.oauth2?.initTokenClient?.({
       client_id: clientId,
       scope: 'https://www.googleapis.com/auth/spreadsheets',
-      callback: (resp: any) => {
+      callback: (resp: GoogleTokenResponse) => {
         if (resp && resp.access_token) {
           setAccessToken(resp.access_token);
           toast.success('Connected to Google');
@@ -89,7 +104,7 @@ export function GoogleSheetsControls({ sales, transactions, month, year }: Props
         }
       },
     });
-    tokenClientRef.current = client;
+    tokenClientRef.current = client || null;
     return client;
   };
 
@@ -99,10 +114,14 @@ export function GoogleSheetsControls({ sales, transactions, month, year }: Props
       return;
     }
     const client = ensureTokenClient();
+    if (!client) {
+      toast.error('Google OAuth client not available yet');
+      return;
+    }
     try {
       client.requestAccessToken({ prompt: 'consent' });
-    } catch (e) {
-      console.error('Token request error', e);
+    } catch (error) {
+      console.error('Token request error', error);
       toast.error('Token request failed');
     }
   };
@@ -113,24 +132,28 @@ export function GoogleSheetsControls({ sales, transactions, month, year }: Props
   };
 
   const buildValuesFromSales = (salesData: DailySales[]) => {
-    const header = ['Date', 'Square Sales', 'Cash Collected', 'Total', 'Notes'];
-    const rows = salesData.map(s => [formatDate(s.date), s.squareSales, s.cashCollected, (s.squareSales + s.cashCollected), s.notes || '']);
+    const monthName = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
+    const header = ['Month', 'Date', 'Square Sales', 'Cash Collected', 'Total', 'Notes', 'Cash Holder'];
+    const sortedSales = [...salesData].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const rows = sortedSales.map(s => [monthName, formatDate(s.date), s.squareSales, s.cashCollected, (s.squareSales + s.cashCollected), s.notes || '', s.cashHolder || '']);
     return [header, ...rows];
   };
 
   const buildValuesFromTransactions = (txs: Transaction[], type: 'expense' | 'payout') => {
+    const monthName = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
+    const sorted = [...txs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     if (type === 'expense') {
-      const header = ['Date', 'Category', 'Amount', 'Payment Method', 'Description', 'Spent By', 'Notes'];
-      const rows = txs.filter(t => t.type === 'expense').map(e => [formatDate(e.date), e.category || '', e.amount, e.paymentMethod || '', e.description || '', e.spentBy || '', e.notes || '']);
+      const header = ['Month', 'Date', 'Category', 'Amount', 'Payment Method', 'Description', 'Spent By', 'Notes'];
+      const rows = sorted.filter(t => t.type === 'expense').map(e => [monthName, formatDate(e.date), e.category || '', e.amount, e.paymentMethod || '', e.description || '', e.spentBy || '', e.notes || '']);
       return [header, ...rows];
     }
 
-    const header = ['Date', 'Payee', 'Amount', 'Purpose', 'Payment Method', 'Notes'];
-    const rows = txs.filter(t => t.type === 'payout').map(p => [formatDate(p.date), p.payeeName || '', p.amount, p.purpose || '', p.paymentMethod || '', p.notes || '']);
+    const header = ['Month', 'Date', 'Payee', 'Amount', 'Purpose', 'Payment Method', 'Notes'];
+    const rows = sorted.filter(t => t.type === 'payout').map(p => [monthName, formatDate(p.date), p.payeeName || '', p.amount, p.purpose || '', p.paymentMethod || '', p.notes || '']);
     return [header, ...rows];
   };
 
-  const putValuesToSheet = async (range: string, values: any[][]) => {
+  const putValuesToSheet = async (range: string, values: SheetValues) => {
     if (!sheetId) throw new Error('Missing NEXT_PUBLIC_GOOGLE_SHEET_ID');
     if (!accessToken) throw new Error('Not connected to Google');
 
@@ -151,6 +174,118 @@ export function GoogleSheetsControls({ sales, transactions, month, year }: Props
     }
 
     return res.json();
+  };
+
+  const appendValuesToSheet = async (range: string, values: SheetValues) => {
+    if (!sheetId) throw new Error('Missing NEXT_PUBLIC_GOOGLE_SHEET_ID');
+    if (!accessToken) throw new Error('Not connected to Google');
+    if (!values.length) return null;
+
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ values }),
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(txt || 'Failed to append to sheet');
+    }
+
+    return res.json();
+  };
+
+  const getSheetId = async (sheetTitle: string) => {
+    if (!sheetId) throw new Error('Missing NEXT_PUBLIC_GOOGLE_SHEET_ID');
+    if (!accessToken) throw new Error('Not connected to Google');
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(txt || 'Failed to load spreadsheet metadata');
+    }
+    const data = (await res.json()) as { sheets?: Array<{ properties?: { title?: string; sheetId?: number } }> };
+    const match = data?.sheets?.find(s => s?.properties?.title === sheetTitle);
+    if (!match) throw new Error(`Sheet not found: ${sheetTitle}`);
+    const id = match.properties?.sheetId;
+    if (typeof id !== 'number') throw new Error(`Invalid sheet id for ${sheetTitle}`);
+    return id;
+  };
+
+  const getColumnValues = async (range: string) => {
+    if (!sheetId) throw new Error('Missing NEXT_PUBLIC_GOOGLE_SHEET_ID');
+    if (!accessToken) throw new Error('Not connected to Google');
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(txt || 'Failed to read sheet values');
+    }
+    const data = (await res.json()) as { values?: string[][] };
+    return data.values || [];
+  };
+
+  const buildDeleteRanges = (rowIndices: number[]) => {
+    const sorted = [...rowIndices].sort((a, b) => a - b);
+    const ranges: Array<{ startIndex: number; endIndex: number }> = [];
+    let start = sorted[0];
+    let prev = sorted[0];
+    for (let i = 1; i < sorted.length; i++) {
+      const cur = sorted[i];
+      if (cur === prev + 1) {
+        prev = cur;
+        continue;
+      }
+      ranges.push({ startIndex: start - 1, endIndex: prev });
+      start = cur;
+      prev = cur;
+    }
+    ranges.push({ startIndex: start - 1, endIndex: prev });
+    return ranges;
+  };
+
+  const deleteMonthRows = async (sheetTitle: string, monthName: string) => {
+    if (!sheetId) throw new Error('Missing NEXT_PUBLIC_GOOGLE_SHEET_ID');
+    if (!accessToken) throw new Error('Not connected to Google');
+    const values = await getColumnValues(`${sheetTitle}!A:A`);
+    const rowsToDelete: number[] = [];
+    for (let i = 1; i < values.length; i++) {
+      if (values[i]?.[0] === monthName) rowsToDelete.push(i + 1);
+    }
+    if (!rowsToDelete.length) return;
+    const sheetIdNum = await getSheetId(sheetTitle);
+    const deleteRanges = buildDeleteRanges(rowsToDelete).sort((a, b) => b.startIndex - a.startIndex);
+    const requests = deleteRanges.map(range => ({
+      deleteDimension: {
+        range: {
+          sheetId: sheetIdNum,
+          dimension: 'ROWS',
+          startIndex: range.startIndex,
+          endIndex: range.endIndex,
+        },
+      },
+    }));
+
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ requests }),
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(txt || `Failed to delete ${monthName} rows from ${sheetTitle}`);
+    }
   };
 
   const getValuesFromSheet = async (range: string) => {
@@ -179,23 +314,45 @@ export function GoogleSheetsControls({ sales, transactions, month, year }: Props
 
     try {
       toast.loading('Saving to Google Sheets...');
+      const monthName = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
+      await deleteMonthRows('Sales', monthName);
+      await deleteMonthRows('Expenses', monthName);
+      await deleteMonthRows('Payouts', monthName);
+      await deleteMonthRows('Summary', monthName);
+
       const salesValues = buildValuesFromSales(sales);
-      await putValuesToSheet('Sales!A1', salesValues);
+      await putValuesToSheet('Sales!A1', [salesValues[0]]);
+      await appendValuesToSheet('Sales!A2', salesValues.slice(1));
 
       const expenseValues = buildValuesFromTransactions(transactions, 'expense');
-      await putValuesToSheet('Expenses!A1', expenseValues);
+      await putValuesToSheet('Expenses!A1', [expenseValues[0]]);
+      await appendValuesToSheet('Expenses!A2', expenseValues.slice(1));
 
       const payoutsValues = buildValuesFromTransactions(transactions, 'payout');
-      await putValuesToSheet('Payouts!A1', payoutsValues);
+      await putValuesToSheet('Payouts!A1', [payoutsValues[0]]);
+      await appendValuesToSheet('Payouts!A2', payoutsValues.slice(1));
 
       // Summary sheet
       const summaryHeader = ['Month', 'Total Sales', 'Total Expenses', 'Total Payouts', 'Net Profit'];
-      const monthName = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
       const totalSales = sales.reduce((s, v) => s + (v.squareSales + v.cashCollected), 0);
       const totalExpenses = transactions.filter(t => t.type === 'expense').reduce((s, e) => s + e.amount, 0);
       const totalPayouts = transactions.filter(t => t.type === 'payout').reduce((s, p) => s + p.amount, 0);
       const summaryValues = [summaryHeader, [monthName, totalSales, totalExpenses, totalPayouts, totalSales - totalExpenses - totalPayouts]];
-      await putValuesToSheet('Summary!A1', summaryValues);
+      await putValuesToSheet('Summary!A1', [summaryValues[0]]);
+      await appendValuesToSheet('Summary!A2', summaryValues.slice(1));
+
+      const cashHolderTotals = sales.reduce<Record<string, number>>((acc, s) => {
+        const holder = s.cashHolder?.trim() || 'Unassigned';
+        acc[holder] = (acc[holder] || 0) + (s.cashCollected || 0);
+        return acc;
+      }, {});
+      const totalCashCollected = sales.reduce((sum, s) => sum + (s.cashCollected || 0), 0);
+      const cashHolderValues = [
+        ['Cash Holder', 'Cash Collected'],
+        ...Object.entries(cashHolderTotals).map(([holder, total]) => [holder, total]),
+        ['Total Cash', totalCashCollected],
+      ];
+      await putValuesToSheet('Summary!G1', cashHolderValues);
 
       toast.dismiss();
       toast.success('Saved to Google Sheets');

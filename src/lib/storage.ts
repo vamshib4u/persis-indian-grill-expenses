@@ -71,7 +71,7 @@ export const storage = {
     return storage.getTransactions().filter(t => t.type === 'expense');
   },
 
-  addExpense: (expense: any): void => {
+  addExpense: (expense: Transaction): void => {
     const transaction: Transaction = {
       ...expense,
       type: 'expense',
@@ -79,7 +79,7 @@ export const storage = {
     storage.addTransaction(transaction);
   },
 
-  updateExpense: (id: string, updates: any): void => {
+  updateExpense: (id: string, updates: Partial<Transaction>): void => {
     storage.updateTransaction(id, updates);
   },
 
@@ -91,7 +91,7 @@ export const storage = {
     return storage.getTransactions().filter(t => t.type === 'payout');
   },
 
-  addPayout: (payout: any): void => {
+  addPayout: (payout: Transaction): void => {
     const transaction: Transaction = {
       id: payout.id,
       date: payout.date,
@@ -108,7 +108,7 @@ export const storage = {
     storage.addTransaction(transaction);
   },
 
-  updatePayout: (id: string, updates: any): void => {
+  updatePayout: (id: string, updates: Partial<Transaction>): void => {
     storage.updateTransaction(id, updates);
   },
 

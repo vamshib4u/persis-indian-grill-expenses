@@ -22,7 +22,9 @@ export async function POST(request: NextRequest) {
     const summary = generateMonthlyReport(sales, transactions, month, year);
 
     // Format data as structured objects
-    const salesData = sales.map((s: DailySales) => ({
+    const sortedSales = [...sales].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const salesData = sortedSales.map((s: DailySales) => ({
+      Month: monthName,
       Date: formatDate(s.date),
       'Square Sales': s.squareSales,
       'Cash Collected': s.cashCollected,
@@ -31,7 +33,9 @@ export async function POST(request: NextRequest) {
       'Cash Holder': s.cashHolder || '',
     }));
 
-    const expensesData = expenses.map((e: Transaction) => ({
+    const sortedExpenses = [...expenses].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const expensesData = sortedExpenses.map((e: Transaction) => ({
+      Month: monthName,
       Date: formatDate(e.date),
       Category: e.category || '',
       Description: e.description || '',
@@ -41,7 +45,9 @@ export async function POST(request: NextRequest) {
       Notes: e.notes || '',
     }));
 
-    const payoutsData = payouts.map((p: Transaction) => ({
+    const sortedPayouts = [...payouts].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const payoutsData = sortedPayouts.map((p: Transaction) => ({
+      Month: monthName,
       Date: formatDate(p.date),
       Payee: p.payeeName || '',
       Purpose: p.purpose || '',
@@ -60,6 +66,18 @@ export async function POST(request: NextRequest) {
       'Cash Collected': summary.unreportedCash,
     };
 
+    const cashHolderTotals = sales.reduce((acc: Record<string, number>, s) => {
+      const holder = s.cashHolder?.trim() || 'Unassigned';
+      acc[holder] = (acc[holder] || 0) + (s.cashCollected || 0);
+      return acc;
+    }, {} as Record<string, number>);
+    const totalCashCollected = sales.reduce((sum, s) => sum + (s.cashCollected || 0), 0);
+    const cashHolderSummary = Object.entries(cashHolderTotals).map(([holder, total]) => ({
+      'Cash Holder': holder,
+      'Cash Collected': total,
+    }));
+    cashHolderSummary.push({ 'Cash Holder': 'Total Cash', 'Cash Collected': totalCashCollected });
+
     // TODO: Implement actual Google Sheets API sync when OAuth is configured
     // For now, return the formatted data for manual entry or future integration
     
@@ -68,6 +86,7 @@ export async function POST(request: NextRequest) {
       expenses: expensesData,
       payouts: payoutsData,
       summary: summaryData,
+      cashHolders: cashHolderSummary,
     });
 
     return NextResponse.json({
@@ -80,6 +99,7 @@ export async function POST(request: NextRequest) {
         expenses: expensesData,
         payouts: payoutsData,
         summary: summaryData,
+        cashHolders: cashHolderSummary,
       },
     });
   } catch (error) {

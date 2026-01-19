@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, Share2, Loader, FileJson, FileSpreadsheet } from 'lucide-react';
+import { Share2, Loader, FileJson, FileSpreadsheet } from 'lucide-react';
 import { GoogleSheetsControls } from './GoogleSheetsControls';
 import { toast } from 'react-hot-toast';
 import { DailySales, Transaction } from '@/types';
@@ -17,7 +17,10 @@ interface ExportButtonsProps {
 export function ExportButtons({ sales, transactions, month, year }: ExportButtonsProps) {
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const convertToCSV = (data: any[]): string => {
+  type CsvValue = string | number | boolean | null | undefined;
+  type CsvRow = Record<string, CsvValue>;
+
+  const convertToCSV = (data: CsvRow[]): string => {
     if (!data || data.length === 0) return '';
     
     const headers = Object.keys(data[0]);
@@ -36,7 +39,7 @@ export function ExportButtons({ sales, transactions, month, year }: ExportButton
   };
 
   const handleDownloadCSV = (type: 'sales' | 'expenses' | 'payouts' | 'all') => {
-    let data: any[];
+    let data: CsvRow[];
     let filename: string;
     const monthName = new Date(year, month).toLocaleString('default', { month: 'short', year: 'numeric' });
 
@@ -69,7 +72,7 @@ export function ExportButtons({ sales, transactions, month, year }: ExportButton
   };
 
   const handleDownloadJSON = (type: 'sales' | 'expenses' | 'payouts' | 'all') => {
-    let data: any;
+    let data: unknown;
     let filename: string;
     const monthName = new Date(year, month).toLocaleString('default', { month: 'short', year: 'numeric' });
 

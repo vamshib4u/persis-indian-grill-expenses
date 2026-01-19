@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { DailySales, Transaction } from '@/types';
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,7 +33,6 @@ export async function POST(request: NextRequest) {
     const encodedContent = Buffer.from(content).toString('base64');
 
     // First, try to get the existing file (to get its SHA)
-    const [owner, repo] = githubRepo.split('/');
     let sha: string | null = null;
 
     try {
@@ -53,7 +51,7 @@ export async function POST(request: NextRequest) {
         const fileData = await getFileResponse.json();
         sha = fileData.sha;
       }
-    } catch (e) {
+    } catch {
       // File doesn't exist yet, that's okay
     }
 

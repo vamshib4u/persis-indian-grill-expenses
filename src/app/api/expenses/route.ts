@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       data: body,
       message: 'Expense recorded successfully',
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Invalid request' },
       { status: 400 }
@@ -51,7 +51,7 @@ export async function PUT(request: NextRequest) {
       data: body,
       message: 'Expense updated successfully',
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Invalid request' },
       { status: 400 }

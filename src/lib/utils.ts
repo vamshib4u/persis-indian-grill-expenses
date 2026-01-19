@@ -1,5 +1,5 @@
 import { DailySales, Transaction, MonthlyReport } from '@/types';
-import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { endOfMonth, isWithinInterval } from 'date-fns';
 
 export const generateMonthlyReport = (
   sales: DailySales[],
@@ -40,7 +40,10 @@ export const generateMonthlyReport = (
   };
 };
 
-export const exportToCSV = (data: any[], filename: string) => {
+type CsvValue = string | number | boolean | null | undefined;
+type CsvRow = Record<string, CsvValue>;
+
+export const exportToCSV = (data: CsvRow[], filename: string) => {
   if (!data || data.length === 0) {
     console.warn('No data to export');
     return;
@@ -69,7 +72,7 @@ export const exportToCSV = (data: any[], filename: string) => {
   window.URL.revokeObjectURL(url);
 };
 
-export const exportToJSON = (data: any, filename: string) => {
+export const exportToJSON = (data: unknown, filename: string) => {
   const json = JSON.stringify(data, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = window.URL.createObjectURL(blob);

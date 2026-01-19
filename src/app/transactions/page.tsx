@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Transaction, DailySales } from '@/types';
+import { useMemo, useState } from 'react';
+import { Transaction } from '@/types';
 import { TransactionsList } from '@/components/TransactionsList';
 import { TransactionForm } from '@/components/TransactionForm';
 import { ExportButtons } from '@/components/ExportButtons';
@@ -12,18 +12,14 @@ import { formatCurrency } from '@/lib/utils';
 import { endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function TransactionsPage() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [sales, setSales] = useState<DailySales[]>([]);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
-  useEffect(() => {
-    loadTransactions();
-  }, [currentMonth, currentYear]);
-
-  const loadTransactions = () => {
+  const { transactions, sales } = useMemo(() => {
+    void refreshKey;
     const allTransactions = storage.getTransactions();
     const allSales = storage.getSales();
     const monthStart = new Date(currentYear, currentMonth, 1);
@@ -35,10 +31,12 @@ export default function TransactionsPage() {
     const monthlySales = allSales.filter(sale =>
       isWithinInterval(new Date(sale.date), { start: monthStart, end: monthEnd })
     );
-    
-    setTransactions(monthlyTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-    setSales(monthlySales);
-  };
+
+    return {
+      transactions: monthlyTransactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+      sales: monthlySales,
+    };
+  }, [currentMonth, currentYear, refreshKey]);
 
   const handleAddTransaction = (transaction: Transaction) => {
     if (editingTransaction) {
@@ -49,7 +47,7 @@ export default function TransactionsPage() {
       storage.addTransaction(transaction);
       toast.success('Transaction recorded successfully');
     }
-    loadTransactions();
+    setRefreshKey(key => key + 1);
     setShowForm(false);
   };
 
@@ -61,9 +59,9 @@ export default function TransactionsPage() {
   const handleDeleteTransaction = (id: string) => {
     if (window.confirm('Are you sure you want to delete this transaction?')) {
       storage.deleteTransaction(id);
-      loadTransactions();
-      toast.success('Transaction deleted');
-    }
+    setRefreshKey(key => key + 1);
+    toast.success('Transaction deleted');
+  }
   };
 
   const handlePreviousMonth = () => {

@@ -1,22 +1,42 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { MonthlyReport } from '@/types';
+import { useMemo, useState } from 'react';
 import { generateMonthlyReport, formatCurrency } from '@/lib/utils';
 import { storage } from '@/lib/storage';
 import { TrendingUp, TrendingDown, DollarSign, BarChart3 } from 'lucide-react';
 
+type TrendPoint = {
+  label: string;
+  netSales: number;
+  cashFlow: number;
+  month: number;
+  year: number;
+};
+
 export default function Dashboard() {
-  const [report, setReport] = useState<MonthlyReport | null>(null);
   const [month, setMonth] = useState(new Date().getMonth());
   const [year, setYear] = useState(new Date().getFullYear());
 
-  useEffect(() => {
+  const { report, trend } = useMemo(() => {
     const sales = storage.getSales();
     const transactions = storage.getTransactions();
-
     const monthlyReport = generateMonthlyReport(sales, transactions, month, year);
-    setReport(monthlyReport);
+
+    const points: TrendPoint[] = [];
+    for (let m = 0; m <= month; m++) {
+      const d = new Date(year, m, 1);
+      const r = generateMonthlyReport(sales, transactions, m, year);
+      const label = d.toLocaleString('default', { month: 'short' });
+      points.push({
+        label,
+        netSales: r.squareSales,
+        cashFlow: r.netCash,
+        month: m,
+        year,
+      });
+    }
+
+    return { report: monthlyReport, trend: points };
   }, [month, year]);
 
   const handlePreviousMonth = () => {
@@ -37,9 +57,6 @@ export default function Dashboard() {
     }
   };
 
-  if (!report) {
-    return <div className="p-8">Loading...</div>;
-  }
 
   const stats = [
     {
@@ -113,6 +130,95 @@ export default function Dashboard() {
               </div>
             );
           })}
+        </div>
+
+        {/* Monthly Trends */}
+        <div className="bg-white rounded-lg shadow p-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold">Monthly Trends</h3>
+              <p className="text-sm text-gray-600">Net sales vs cash flow (this year)</p>
+            </div>
+            <div className="flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="inline-block w-3 h-3 rounded-full bg-blue-500" />
+                Net Sales
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-block w-3 h-3 rounded-full bg-emerald-500" />
+                Cash Flow
+              </div>
+            </div>
+          </div>
+
+          {trend.length === 0 ? (
+            <div className="text-sm text-gray-500">No data yet.</div>
+          ) : (
+            <div className="w-full overflow-x-auto">
+              <svg viewBox="0 0 800 240" className="w-full h-64">
+                {(() => {
+                  const padding = { left: 48, right: 24, top: 16, bottom: 40 };
+                  const width = 800 - padding.left - padding.right;
+                  const height = 240 - padding.top - padding.bottom;
+                  const values = trend.flatMap(p => [p.netSales, p.cashFlow]);
+                  const min = Math.min(...values, 0);
+                  const max = Math.max(...values, 1);
+                  const scaleX = (idx: number) => {
+                    if (trend.length <= 1) return padding.left + width / 2;
+                    return padding.left + (idx / (trend.length - 1)) * width;
+                  };
+                  const scaleY = (val: number) => {
+                    const denom = max - min || 1;
+                    return padding.top + (1 - (val - min) / denom) * height;
+                  };
+                  const toPath = (key: 'netSales' | 'cashFlow') =>
+                    trend
+                      .map((p, i) => `${i === 0 ? 'M' : 'L'} ${scaleX(i)} ${scaleY(p[key])}`)
+                      .join(' ');
+
+                  return (
+                    <>
+                      <line
+                        x1={padding.left}
+                        y1={padding.top + height}
+                        x2={padding.left + width}
+                        y2={padding.top + height}
+                        stroke="#e5e7eb"
+                        strokeWidth="1"
+                      />
+                      <line
+                        x1={padding.left}
+                        y1={padding.top}
+                        x2={padding.left}
+                        y2={padding.top + height}
+                        stroke="#e5e7eb"
+                        strokeWidth="1"
+                      />
+
+                      <path d={toPath('netSales')} fill="none" stroke="#3b82f6" strokeWidth="2.5" />
+                      <path d={toPath('cashFlow')} fill="none" stroke="#10b981" strokeWidth="2.5" />
+
+                      {trend.map((p, i) => (
+                        <g key={`${p.label}-${i}`}>
+                          <circle cx={scaleX(i)} cy={scaleY(p.netSales)} r="3" fill="#3b82f6" />
+                          <circle cx={scaleX(i)} cy={scaleY(p.cashFlow)} r="3" fill="#10b981" />
+                          <text
+                            x={scaleX(i)}
+                            y={padding.top + height + 18}
+                            textAnchor="middle"
+                            fontSize="10"
+                            fill="#6b7280"
+                          >
+                            {p.label}
+                          </text>
+                        </g>
+                      ))}
+                    </>
+                  );
+                })()}
+              </svg>
+            </div>
+          )}
         </div>
 
         {/* Detailed Breakdown */}
