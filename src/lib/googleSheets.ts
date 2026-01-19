@@ -81,10 +81,14 @@ export async function refreshAccessToken() {
 
   const res = await fetch(TOKEN_ENDPOINT, { method: 'POST', body: params });
   if (!res.ok) throw new Error(`Refresh failed: ${res.status} ${await res.text()}`);
-  const newTokens = await res.json();
+  const newTokens = normalizeTokens((await res.json()) as Record<string, unknown>) || {};
 
   // Merge new tokens with existing (preserve refresh_token if new one not returned)
-  const merged = { ...tokens, ...newTokens, refresh_token: newTokens.refresh_token || tokens.refresh_token };
+  const merged: OAuthTokens = {
+    ...tokens,
+    ...newTokens,
+    refresh_token: newTokens.refresh_token || tokens.refresh_token,
+  };
   await saveTokens(merged);
   return merged;
 }
@@ -99,9 +103,15 @@ export async function getAccessToken(): Promise<string> {
     // set an approximate expires_at
     refreshed.expires_at = Date.now() + (refreshed.expires_in || 3600) * 1000;
     await saveTokens(refreshed);
+    if (!refreshed.access_token) {
+      throw new Error('Missing access token after refresh');
+    }
     return refreshed.access_token;
   }
 
+  if (!tokens.access_token) {
+    throw new Error('Missing access token');
+  }
   return tokens.access_token;
 }
 
