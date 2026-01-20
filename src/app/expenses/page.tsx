@@ -1,24 +1,25 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import { Transaction } from '@/types';
 import { ExpensesList } from '@/components/ExpensesList';
 import { ExpenseForm } from '@/components/ExpenseForm';
-import { storage } from '@/lib/storage';
+import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '@/lib/utils';
 import { endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function ExpensesPage() {
-  const [refreshKey, setRefreshKey] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Transaction | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
+  const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
+
   const expenses = useMemo(() => {
-    void refreshKey;
+    void storageVersion;
     const allExpenses = storage.getExpenses();
     const monthStart = new Date(currentYear, currentMonth, 1);
     const monthEnd = endOfMonth(monthStart);
@@ -27,7 +28,7 @@ export default function ExpensesPage() {
       isWithinInterval(new Date(expense.date), { start: monthStart, end: monthEnd })
     );
     return monthlyExpenses.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [currentMonth, currentYear, refreshKey]);
+  }, [currentMonth, currentYear, storageVersion]);
 
   const handleAddExpense = (expense: Transaction) => {
     if (editingExpense) {
@@ -38,7 +39,6 @@ export default function ExpensesPage() {
       storage.addExpense(expense);
       toast.success('Expense recorded successfully');
     }
-    setRefreshKey(key => key + 1);
     setShowForm(false);
   };
 
@@ -50,7 +50,6 @@ export default function ExpensesPage() {
   const handleDeleteExpense = (id: string) => {
     if (window.confirm('Are you sure you want to delete this expense?')) {
       storage.deleteExpense(id);
-    setRefreshKey(key => key + 1);
     toast.success('Expense deleted');
   }
   };

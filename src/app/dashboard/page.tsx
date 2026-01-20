@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import { generateMonthlyReport, formatCurrency } from '@/lib/utils';
-import { storage } from '@/lib/storage';
+import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { TrendingUp, TrendingDown, DollarSign, BarChart3 } from 'lucide-react';
 
 type TrendPoint = {
@@ -17,7 +17,10 @@ export default function Dashboard() {
   const [month, setMonth] = useState(new Date().getMonth());
   const [year, setYear] = useState(new Date().getFullYear());
 
+  const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
+
   const { report, trend } = useMemo(() => {
+    void storageVersion;
     const sales = storage.getSales();
     const transactions = storage.getTransactions();
     const monthlyReport = generateMonthlyReport(sales, transactions, month, year);
@@ -37,7 +40,7 @@ export default function Dashboard() {
     }
 
     return { report: monthlyReport, trend: points };
-  }, [month, year]);
+  }, [month, year, storageVersion]);
 
   const handlePreviousMonth = () => {
     if (month === 0) {

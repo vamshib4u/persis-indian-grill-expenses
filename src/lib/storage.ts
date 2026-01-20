@@ -5,6 +5,28 @@ const STORAGE_KEYS = {
   TRANSACTIONS: 'persis_transactions_data',
 };
 
+const STORAGE_EVENT = 'persis-storage-change';
+let storageVersion = 0;
+
+export const getStorageVersion = () => storageVersion;
+
+export const subscribeToStorage = (callback: () => void) => {
+  if (typeof window === 'undefined') return () => {};
+  const handler = () => callback();
+  window.addEventListener(STORAGE_EVENT, handler);
+  window.addEventListener('storage', handler);
+  return () => {
+    window.removeEventListener(STORAGE_EVENT, handler);
+    window.removeEventListener('storage', handler);
+  };
+};
+
+const notifyChange = () => {
+  if (typeof window === 'undefined') return;
+  storageVersion += 1;
+  window.dispatchEvent(new Event(STORAGE_EVENT));
+};
+
 export const storage = {
   // Sales operations
   getSales: (): DailySales[] => {
@@ -18,6 +40,7 @@ export const storage = {
     const sales = storage.getSales();
     sales.push(sale);
     localStorage.setItem(STORAGE_KEYS.SALES, JSON.stringify(sales));
+    notifyChange();
   },
 
   updateSale: (id: string, updates: Partial<DailySales>): void => {
@@ -27,6 +50,7 @@ export const storage = {
     if (index !== -1) {
       sales[index] = { ...sales[index], ...updates };
       localStorage.setItem(STORAGE_KEYS.SALES, JSON.stringify(sales));
+      notifyChange();
     }
   },
 
@@ -34,6 +58,7 @@ export const storage = {
     if (typeof window === 'undefined') return;
     const sales = storage.getSales().filter(s => s.id !== id);
     localStorage.setItem(STORAGE_KEYS.SALES, JSON.stringify(sales));
+    notifyChange();
   },
 
   // Transactions operations (combined expenses and payouts)
@@ -48,6 +73,7 @@ export const storage = {
     const transactions = storage.getTransactions();
     transactions.push(transaction);
     localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
+    notifyChange();
   },
 
   updateTransaction: (id: string, updates: Partial<Transaction>): void => {
@@ -57,6 +83,7 @@ export const storage = {
     if (index !== -1) {
       transactions[index] = { ...transactions[index], ...updates };
       localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
+      notifyChange();
     }
   },
 
@@ -64,6 +91,7 @@ export const storage = {
     if (typeof window === 'undefined') return;
     const transactions = storage.getTransactions().filter(t => t.id !== id);
     localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
+    notifyChange();
   },
 
   // Backward compatibility - keep old methods pointing to new unified system
@@ -120,5 +148,6 @@ export const storage = {
   clearAll: (): void => {
     if (typeof window === 'undefined') return;
     Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
+    notifyChange();
   },
 };

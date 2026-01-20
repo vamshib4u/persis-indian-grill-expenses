@@ -1,24 +1,25 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import { Transaction } from '@/types';
 import { PayoutsList } from '@/components/PayoutsList';
 import { PayoutForm } from '@/components/PayoutForm';
-import { storage } from '@/lib/storage';
+import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, DollarSign, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '@/lib/utils';
 import { endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function PayoutsPage() {
-  const [refreshKey, setRefreshKey] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [editingPayout, setEditingPayout] = useState<Transaction | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
+  const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
+
   const payouts = useMemo(() => {
-    void refreshKey;
+    void storageVersion;
     const allPayouts = storage.getPayouts();
     const monthStart = new Date(currentYear, currentMonth, 1);
     const monthEnd = endOfMonth(monthStart);
@@ -27,7 +28,7 @@ export default function PayoutsPage() {
       isWithinInterval(new Date(payout.date), { start: monthStart, end: monthEnd })
     );
     return monthlyPayouts.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [currentMonth, currentYear, refreshKey]);
+  }, [currentMonth, currentYear, storageVersion]);
 
   const handleAddPayout = (payout: Transaction) => {
     if (editingPayout) {
@@ -38,7 +39,6 @@ export default function PayoutsPage() {
       storage.addPayout(payout);
       toast.success('Payout recorded successfully');
     }
-    setRefreshKey(key => key + 1);
     setShowForm(false);
   };
 
@@ -50,7 +50,6 @@ export default function PayoutsPage() {
   const handleDeletePayout = (id: string) => {
     if (window.confirm('Are you sure you want to delete this payout?')) {
       storage.deletePayout(id);
-    setRefreshKey(key => key + 1);
     toast.success('Payout deleted');
   }
   };

@@ -1,25 +1,26 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import { Transaction } from '@/types';
 import { TransactionsList } from '@/components/TransactionsList';
 import { TransactionForm } from '@/components/TransactionForm';
 import { ExportButtons } from '@/components/ExportButtons';
-import { storage } from '@/lib/storage';
+import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '@/lib/utils';
 import { endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function TransactionsPage() {
-  const [refreshKey, setRefreshKey] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
+  const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
+
   const { transactions, sales } = useMemo(() => {
-    void refreshKey;
+    void storageVersion;
     const allTransactions = storage.getTransactions();
     const allSales = storage.getSales();
     const monthStart = new Date(currentYear, currentMonth, 1);
@@ -36,7 +37,7 @@ export default function TransactionsPage() {
       transactions: monthlyTransactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
       sales: monthlySales,
     };
-  }, [currentMonth, currentYear, refreshKey]);
+  }, [currentMonth, currentYear, storageVersion]);
 
   const handleAddTransaction = (transaction: Transaction) => {
     if (editingTransaction) {
@@ -47,7 +48,6 @@ export default function TransactionsPage() {
       storage.addTransaction(transaction);
       toast.success('Transaction recorded successfully');
     }
-    setRefreshKey(key => key + 1);
     setShowForm(false);
   };
 
@@ -59,7 +59,6 @@ export default function TransactionsPage() {
   const handleDeleteTransaction = (id: string) => {
     if (window.confirm('Are you sure you want to delete this transaction?')) {
       storage.deleteTransaction(id);
-    setRefreshKey(key => key + 1);
     toast.success('Transaction deleted');
   }
   };

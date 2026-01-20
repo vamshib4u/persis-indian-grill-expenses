@@ -1,25 +1,26 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import { DailySales } from '@/types';
 import { SalesList } from '@/components/SalesList';
 import { SalesForm } from '@/components/SalesForm';
 import { ExportButtons } from '@/components/ExportButtons';
-import { storage } from '@/lib/storage';
+import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, DollarSign, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '@/lib/utils';
 import { endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function SalesPage() {
-  const [refreshKey, setRefreshKey] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [editingSale, setEditingSale] = useState<DailySales | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
+  const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
+
   const { sales, transactions } = useMemo(() => {
-    void refreshKey;
+    void storageVersion;
     const allSales = storage.getSales();
     const allTransactions = storage.getTransactions();
     const monthStart = new Date(currentYear, currentMonth, 1);
@@ -36,7 +37,7 @@ export default function SalesPage() {
       sales: monthlySales.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
       transactions: monthlyTransactions,
     };
-  }, [currentMonth, currentYear, refreshKey]);
+  }, [currentMonth, currentYear, storageVersion]);
 
   const handleAddSale = (sale: DailySales) => {
     if (editingSale) {
@@ -47,7 +48,6 @@ export default function SalesPage() {
       storage.addSale(sale);
       toast.success('Sale recorded successfully');
     }
-    setRefreshKey(key => key + 1);
     setShowForm(false);
   };
 
@@ -59,7 +59,6 @@ export default function SalesPage() {
   const handleDeleteSale = (id: string) => {
     if (window.confirm('Are you sure you want to delete this sale?')) {
       storage.deleteSale(id);
-    setRefreshKey(key => key + 1);
     toast.success('Sale deleted');
   }
   };
