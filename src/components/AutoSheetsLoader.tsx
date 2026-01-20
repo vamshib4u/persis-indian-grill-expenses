@@ -117,29 +117,6 @@ const parsePayouts = (rows: SheetRows): Transaction[] => {
   });
 };
 
-const keyForSale = (s: DailySales) =>
-  [
-    toKeyDate(new Date(s.date)),
-    s.squareSales,
-    s.cashCollected,
-    s.cashHolder || '',
-    s.notes || '',
-  ].join('|');
-
-const keyForTransaction = (t: Transaction) =>
-  [
-    t.type,
-    toKeyDate(new Date(t.date)),
-    t.amount,
-    t.category || '',
-    t.description || '',
-    t.payeeName || '',
-    t.purpose || '',
-    t.paymentMethod || '',
-    t.spentBy || '',
-    t.notes || '',
-  ].join('|');
-
 export const AutoSheetsLoader = () => {
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -160,28 +137,8 @@ export const AutoSheetsLoader = () => {
         const incomingExpenses = parseExpenses(payload.expenses || []);
         const incomingPayouts = parsePayouts(payload.payouts || []);
 
-        const existingSales = storage.getSales();
-        const existingTransactions = storage.getTransactions();
-
-        const salesKeys = new Set(existingSales.map(keyForSale));
-        const transactionKeys = new Set(existingTransactions.map(keyForTransaction));
-
-        const mergedSales = [
-          ...existingSales,
-          ...incomingSales.filter(s => !salesKeys.has(keyForSale(s))),
-        ];
-        const mergedTransactions = [
-          ...existingTransactions,
-          ...incomingExpenses.filter(t => !transactionKeys.has(keyForTransaction(t))),
-          ...incomingPayouts.filter(t => !transactionKeys.has(keyForTransaction(t))),
-        ];
-
-        if (mergedSales.length !== existingSales.length) {
-          storage.setSales(mergedSales);
-        }
-        if (mergedTransactions.length !== existingTransactions.length) {
-          storage.setTransactions(mergedTransactions);
-        }
+        storage.setSales(incomingSales);
+        storage.setTransactions([...incomingExpenses, ...incomingPayouts]);
       } catch {
         // ignore auto-load failures to keep UI usable
       }
