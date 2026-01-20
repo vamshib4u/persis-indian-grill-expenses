@@ -35,6 +35,12 @@ export const storage = {
     return data ? JSON.parse(data) : [];
   },
 
+  setSales: (sales: DailySales[]): void => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(STORAGE_KEYS.SALES, JSON.stringify(sales));
+    notifyChange();
+  },
+
   addSale: (sale: DailySales): void => {
     if (typeof window === 'undefined') return;
     const sales = storage.getSales();
@@ -66,6 +72,12 @@ export const storage = {
     if (typeof window === 'undefined') return [];
     const data = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
     return data ? JSON.parse(data) : [];
+  },
+
+  setTransactions: (transactions: Transaction[]): void => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
+    notifyChange();
   },
 
   addTransaction: (transaction: Transaction): void => {

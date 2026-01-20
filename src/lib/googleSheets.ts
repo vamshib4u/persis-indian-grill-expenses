@@ -149,6 +149,26 @@ async function appendValuesWithAccessToken(spreadsheetId: string, range: string,
   return res.json();
 }
 
+async function getValuesWithAccessToken(spreadsheetId: string, range: string, accessToken: string) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`;
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(txt || 'Failed to read from sheet');
+  }
+  const data = (await res.json()) as SheetsValuesResponse;
+  return data.values || [];
+}
+
+export async function readSheetRange(spreadsheetId: string, range: string) {
+  const accessToken = await getAccessToken();
+  return getValuesWithAccessToken(spreadsheetId, range, accessToken);
+}
+
 async function getSheetId(spreadsheetId: string, sheetTitle: string, accessToken: string): Promise<number> {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties`;
   const res = await fetch(url, {
