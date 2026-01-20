@@ -8,6 +8,7 @@ import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '@/lib/utils';
+import { useAutoSyncSheets } from '@/lib/useAutoSyncSheets';
 import { endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function ExpensesPage() {
@@ -18,17 +19,28 @@ export default function ExpensesPage() {
 
   const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
 
-  const expenses = useMemo(() => {
+  const { expenses, monthSales, monthTransactions } = useMemo(() => {
     void storageVersion;
-    const allExpenses = storage.getExpenses();
+    const allTransactions = storage.getTransactions();
+    const allSales = storage.getSales();
     const monthStart = new Date(currentYear, currentMonth, 1);
     const monthEnd = endOfMonth(monthStart);
 
-    const monthlyExpenses = allExpenses.filter(expense =>
-      isWithinInterval(new Date(expense.date), { start: monthStart, end: monthEnd })
+    const monthlyTransactions = allTransactions.filter(transaction =>
+      isWithinInterval(new Date(transaction.date), { start: monthStart, end: monthEnd })
     );
-    return monthlyExpenses.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const monthlyExpenses = monthlyTransactions.filter(t => t.type === 'expense');
+    const monthlySales = allSales.filter(sale =>
+      isWithinInterval(new Date(sale.date), { start: monthStart, end: monthEnd })
+    );
+    return {
+      expenses: monthlyExpenses.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+      monthSales: monthlySales,
+      monthTransactions: monthlyTransactions,
+    };
   }, [currentMonth, currentYear, storageVersion]);
+
+  useAutoSyncSheets(monthSales, monthTransactions, currentMonth, currentYear);
 
   const handleAddExpense = (expense: Transaction) => {
     if (editingExpense) {

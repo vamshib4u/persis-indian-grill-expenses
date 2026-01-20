@@ -8,6 +8,7 @@ import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, DollarSign, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '@/lib/utils';
+import { useAutoSyncSheets } from '@/lib/useAutoSyncSheets';
 import { endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function PayoutsPage() {
@@ -18,17 +19,28 @@ export default function PayoutsPage() {
 
   const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
 
-  const payouts = useMemo(() => {
+  const { payouts, monthSales, monthTransactions } = useMemo(() => {
     void storageVersion;
-    const allPayouts = storage.getPayouts();
+    const allTransactions = storage.getTransactions();
+    const allSales = storage.getSales();
     const monthStart = new Date(currentYear, currentMonth, 1);
     const monthEnd = endOfMonth(monthStart);
 
-    const monthlyPayouts = allPayouts.filter(payout =>
-      isWithinInterval(new Date(payout.date), { start: monthStart, end: monthEnd })
+    const monthlyTransactions = allTransactions.filter(transaction =>
+      isWithinInterval(new Date(transaction.date), { start: monthStart, end: monthEnd })
     );
-    return monthlyPayouts.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const monthlyPayouts = monthlyTransactions.filter(t => t.type === 'payout');
+    const monthlySales = allSales.filter(sale =>
+      isWithinInterval(new Date(sale.date), { start: monthStart, end: monthEnd })
+    );
+    return {
+      payouts: monthlyPayouts.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+      monthSales: monthlySales,
+      monthTransactions: monthlyTransactions,
+    };
   }, [currentMonth, currentYear, storageVersion]);
+
+  useAutoSyncSheets(monthSales, monthTransactions, currentMonth, currentYear);
 
   const handleAddPayout = (payout: Transaction) => {
     if (editingPayout) {

@@ -9,6 +9,7 @@ import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '@/lib/utils';
+import { useAutoSyncSheets } from '@/lib/useAutoSyncSheets';
 import { endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function TransactionsPage() {
@@ -38,6 +39,8 @@ export default function TransactionsPage() {
       sales: monthlySales,
     };
   }, [currentMonth, currentYear, storageVersion]);
+
+  useAutoSyncSheets(sales, transactions, currentMonth, currentYear);
 
   const handleAddTransaction = (transaction: Transaction) => {
     if (editingTransaction) {
