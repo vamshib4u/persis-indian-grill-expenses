@@ -5,7 +5,6 @@ import { Transaction } from '@/types';
 import { TransactionsList } from '@/components/TransactionsList';
 import { TransactionForm } from '@/components/TransactionForm';
 import { ExportButtons } from '@/components/ExportButtons';
-import { CashHoldingSummary } from '@/components/CashHoldingSummary';
 import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -186,13 +185,6 @@ export default function TransactionsPage() {
             </div>
           </div>
         )}
-
-        <CashHoldingSummary
-          sales={allSales}
-          transactions={allTransactions}
-          month={currentMonth}
-          year={currentYear}
-        />
 
         <div className="bg-white rounded-lg shadow">
           {transactions.length > 0 ? (
