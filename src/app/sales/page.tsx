@@ -5,6 +5,7 @@ import { DailySales } from '@/types';
 import { SalesList } from '@/components/SalesList';
 import { SalesForm } from '@/components/SalesForm';
 import { ExportButtons } from '@/components/ExportButtons';
+import { CashHoldingCards } from '@/components/CashHoldingCards';
 import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, DollarSign, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -182,6 +183,13 @@ export default function SalesPage() {
             </div>
           </div>
         )}
+
+        <CashHoldingCards
+          sales={allSales}
+          transactions={allTransactions}
+          month={currentMonth}
+          year={currentYear}
+        />
 
         <div className="bg-white rounded-lg shadow">
           {sales.length > 0 ? (

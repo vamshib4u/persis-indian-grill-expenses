@@ -15,7 +15,6 @@ type TrendPoint = {
 };
 
 export default function Dashboard() {
-  const [month, setMonth] = useState(new Date().getMonth());
   const [year, setYear] = useState(new Date().getFullYear());
 
   const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
@@ -24,10 +23,29 @@ export default function Dashboard() {
     void storageVersion;
     const sales = storage.getSales();
     const transactions = storage.getTransactions();
-    const monthlyReport = generateMonthlyReport(sales, transactions, month, year);
+    const yearSales = sales.filter(s => new Date(s.date).getFullYear() === year);
+    const yearTransactions = transactions.filter(t => new Date(t.date).getFullYear() === year);
+
+    const totalSquareSales = yearSales.reduce((sum, s) => sum + s.squareSales, 0);
+    const totalUnreportedCash = yearSales.reduce((sum, s) => sum + s.cashCollected, 0);
+    const totalIncome = totalSquareSales + totalUnreportedCash;
+    const totalExpenses = yearTransactions.filter(t => t.type === 'expense').reduce((sum, e) => sum + e.amount, 0);
+    const totalPayouts = yearTransactions.filter(t => t.type === 'payout').reduce((sum, p) => sum + p.amount, 0);
+    const netCash = totalIncome - totalExpenses - totalPayouts;
+
+    const yearlyReport = {
+      month: 'Year',
+      year,
+      totalIncome,
+      totalExpenses,
+      totalPayouts,
+      netCash,
+      squareSales: totalSquareSales,
+      unreportedCash: totalUnreportedCash,
+    };
 
     const points: TrendPoint[] = [];
-    for (let m = 0; m <= month; m++) {
+    for (let m = 0; m < 12; m++) {
       const d = new Date(year, m, 1);
       const r = generateMonthlyReport(sales, transactions, m, year);
       const label = d.toLocaleString('default', { month: 'short' });
@@ -40,25 +58,15 @@ export default function Dashboard() {
       });
     }
 
-    return { report: monthlyReport, trend: points, allSales: sales, allTransactions: transactions };
-  }, [month, year, storageVersion]);
+    return { report: yearlyReport, trend: points, allSales: sales, allTransactions: transactions };
+  }, [year, storageVersion]);
 
-  const handlePreviousMonth = () => {
-    if (month === 0) {
-      setMonth(11);
-      setYear(year - 1);
-    } else {
-      setMonth(month - 1);
-    }
+  const handlePreviousYear = () => {
+    setYear(year - 1);
   };
 
-  const handleNextMonth = () => {
-    if (month === 11) {
-      setMonth(0);
-      setYear(year + 1);
-    } else {
-      setMonth(month + 1);
-    }
+  const handleNextYear = () => {
+    setYear(year + 1);
   };
 
 
@@ -94,26 +102,26 @@ export default function Dashboard() {
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Dashboard</h1>
-          <p className="text-gray-600">Monthly Revenue & Expense Overview</p>
+          <p className="text-gray-600">Yearly Revenue & Expense Overview</p>
         </div>
 
-        {/* Month Selector */}
+        {/* Year Selector */}
         <div className="bg-white rounded-lg shadow p-4 mb-8">
           <div className="flex justify-between items-center">
             <button
-              onClick={handlePreviousMonth}
+              onClick={handlePreviousYear}
               className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
             >
-              ← Previous
+              Previous
             </button>
             <h2 className="text-2xl font-semibold">
-              {report.month} {report.year}
+              {report.year}
             </h2>
             <button
-              onClick={handleNextMonth}
+              onClick={handleNextYear}
               className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
             >
-              Next →
+              Next
             </button>
           </div>
         </div>
@@ -141,7 +149,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-lg font-semibold">Monthly Trends</h3>
-              <p className="text-sm text-gray-600">Net sales vs cash flow (this year)</p>
+              <p className="text-sm text-gray-600">Net sales vs cash flow (year)</p>
             </div>
             <div className="flex items-center gap-4 text-sm">
               <div className="flex items-center gap-2">
