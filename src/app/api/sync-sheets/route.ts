@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
     // Format data as structured objects
     const sortedSales = [...sales].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const salesData = sortedSales.map((s: DailySales) => ({
+      ID: s.id,
       Month: monthName,
       Date: formatDate(s.date),
       'Square Sales': s.squareSales,
@@ -41,6 +42,7 @@ export async function POST(request: NextRequest) {
 
     const sortedExpenses = [...expenses].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const expensesData = sortedExpenses.map((e: Transaction) => ({
+      ID: e.id,
       Month: monthName,
       Date: formatDate(e.date),
       Category: e.category || '',
@@ -53,6 +55,7 @@ export async function POST(request: NextRequest) {
 
     const sortedPayouts = [...payouts].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const payoutsData = sortedPayouts.map((p: Transaction) => ({
+      ID: p.id,
       Month: monthName,
       Date: formatDate(p.date),
       Payee: p.payeeName || '',

@@ -134,9 +134,9 @@ export function GoogleSheetsControls({ sales, transactions, month, year }: Props
 
   const buildValuesFromSales = (salesData: DailySales[]) => {
     const monthName = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
-    const header = ['Month', 'Date', 'Square Sales', 'Cash Collected', 'Total', 'Notes', 'Cash Holder'];
+    const header = ['ID', 'Month', 'Date', 'Square Sales', 'Cash Collected', 'Total', 'Notes', 'Cash Holder'];
     const sortedSales = [...salesData].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    const rows = sortedSales.map(s => [monthName, formatDate(s.date), s.squareSales, s.cashCollected, (s.squareSales + s.cashCollected), s.notes || '', s.cashHolder || '']);
+    const rows = sortedSales.map(s => [s.id, monthName, formatDate(s.date), s.squareSales, s.cashCollected, (s.squareSales + s.cashCollected), s.notes || '', s.cashHolder || '']);
     return [header, ...rows];
   };
 
@@ -144,13 +144,13 @@ export function GoogleSheetsControls({ sales, transactions, month, year }: Props
     const monthName = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
     const sorted = [...txs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     if (type === 'expense') {
-      const header = ['Month', 'Date', 'Category', 'Amount', 'Payment Method', 'Description', 'Spent By', 'Notes'];
-      const rows = sorted.filter(t => t.type === 'expense').map(e => [monthName, formatDate(e.date), e.category || '', e.amount, e.paymentMethod || '', e.description || '', e.spentBy || '', e.notes || '']);
+      const header = ['ID', 'Month', 'Date', 'Category', 'Amount', 'Payment Method', 'Description', 'Spent By', 'Notes'];
+      const rows = sorted.filter(t => t.type === 'expense').map(e => [e.id, monthName, formatDate(e.date), e.category || '', e.amount, e.paymentMethod || '', e.description || '', e.spentBy || '', e.notes || '']);
       return [header, ...rows];
     }
 
-    const header = ['Month', 'Date', 'Payee', 'Amount', 'Purpose', 'Payment Method', 'Notes'];
-    const rows = sorted.filter(t => t.type === 'payout').map(p => [monthName, formatDate(p.date), p.payeeName || '', p.amount, p.purpose || '', p.paymentMethod || '', p.notes || '']);
+    const header = ['ID', 'Month', 'Date', 'Payee', 'Amount', 'Purpose', 'Payment Method', 'Notes'];
+    const rows = sorted.filter(t => t.type === 'payout').map(p => [p.id, monthName, formatDate(p.date), p.payeeName || '', p.amount, p.purpose || '', p.paymentMethod || '', p.notes || '']);
     return [header, ...rows];
   };
 

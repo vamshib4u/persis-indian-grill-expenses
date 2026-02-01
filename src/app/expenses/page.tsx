@@ -9,7 +9,7 @@ import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '@/lib/utils';
-import { useAutoSyncSheets } from '@/lib/useAutoSyncSheets';
+import { syncSheetsNow } from '@/lib/sheetsSync';
 import { endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function ExpensesPage() {
@@ -38,7 +38,11 @@ export default function ExpensesPage() {
     };
   }, [currentMonth, currentYear, storageVersion]);
 
-  useAutoSyncSheets(allSales, allTransactions, currentMonth, currentYear);
+  const runSync = () => {
+    const latestSales = storage.getSales();
+    const latestTransactions = storage.getTransactions();
+    void syncSheetsNow(latestSales, latestTransactions, currentMonth, currentYear);
+  };
 
   const handleAddExpense = (expense: Transaction) => {
     if (editingExpense) {
@@ -49,6 +53,7 @@ export default function ExpensesPage() {
       storage.addExpense(expense);
       toast.success('Expense recorded successfully');
     }
+    runSync();
     setShowForm(false);
   };
 
@@ -61,6 +66,7 @@ export default function ExpensesPage() {
     if (window.confirm('Are you sure you want to delete this expense?')) {
       storage.deleteExpense(id);
     toast.success('Expense deleted');
+    runSync();
   }
   };
 

@@ -18,6 +18,8 @@ export const useAutoSyncSheets = (
 
   useEffect(() => {
     if (!process.env.NEXT_PUBLIC_GOOGLE_SHEET_ID) return;
+    if (typeof window === 'undefined') return;
+    if (!sessionStorage.getItem('persis_sheets_loaded')) return;
 
     const runSync = async () => {
       const state = syncState.current;

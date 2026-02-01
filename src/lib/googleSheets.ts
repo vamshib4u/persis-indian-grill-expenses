@@ -254,6 +254,114 @@ async function deleteMonthRows(spreadsheetId: string, sheetTitle: string, monthN
   }
 }
 
+type UpsertSheetConfig = {
+  sheetTitle: string;
+  header: string[];
+  monthName: string;
+  rows: Array<string[]>;
+};
+
+async function ensureHeaderRow(
+  spreadsheetId: string,
+  sheetTitle: string,
+  header: string[],
+  accessToken: string
+) {
+  const existing = await getValuesWithAccessToken(spreadsheetId, `${sheetTitle}!A1:Z1`, accessToken);
+  const existingHeader = existing[0] || [];
+  const matches =
+    existingHeader.length === header.length &&
+    header.every((col, idx) => existingHeader[idx] === col);
+  if (!matches) {
+    await putValuesWithAccessToken(spreadsheetId, `${sheetTitle}!A1`, [header], accessToken);
+  }
+}
+
+function padRow(row: string[], length: number) {
+  if (row.length >= length) return row.slice(0, length);
+  return [...row, ...Array.from({ length: length - row.length }, () => '')];
+}
+
+async function upsertSheetById(
+  spreadsheetId: string,
+  config: UpsertSheetConfig,
+  accessToken: string
+) {
+  const { sheetTitle, header, monthName, rows } = config;
+  await ensureHeaderRow(spreadsheetId, sheetTitle, header, accessToken);
+
+  const values = await getValuesWithAccessToken(spreadsheetId, `${sheetTitle}!A1:Z`, accessToken);
+  const idIdx = header.indexOf('ID');
+  const monthIdx = header.indexOf('Month');
+  if (idIdx < 0) throw new Error(`Missing ID column in ${sheetTitle}`);
+  if (monthIdx < 0) throw new Error(`Missing Month column in ${sheetTitle}`);
+
+  const existingById = new Map<string, number>();
+  const rowsToDelete: number[] = [];
+
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i] || [];
+    const id = row[idIdx];
+    if (id) existingById.set(id, i + 1); // sheet rows are 1-based
+    const rowMonth = row[monthIdx];
+    if (rowMonth === monthName) {
+      rowsToDelete.push(i + 1);
+    }
+  }
+
+  const desiredIds = new Set<string>();
+  const preparedRows = rows.map(r => padRow(r, header.length));
+  preparedRows.forEach(r => {
+    const id = r[idIdx];
+    if (id) desiredIds.add(id);
+  });
+
+  // Delete only rows for this month that are no longer present
+  const deleteTargets = rowsToDelete.filter(rowIndex => {
+    const row = values[rowIndex - 1] || [];
+    const id = row[idIdx];
+    return !id || !desiredIds.has(id);
+  });
+
+  if (deleteTargets.length) {
+    const sheetId = await getSheetId(spreadsheetId, sheetTitle, accessToken);
+    const deleteRanges = buildDeleteRanges(deleteTargets).sort((a, b) => b.startIndex - a.startIndex);
+    const requests = deleteRanges.map(range => ({
+      deleteDimension: {
+        range: {
+          sheetId,
+          dimension: 'ROWS',
+          startIndex: range.startIndex,
+          endIndex: range.endIndex,
+        },
+      },
+    }));
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ requests }),
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(txt || `Failed to delete rows from ${sheetTitle}`);
+    }
+  }
+
+  for (const row of preparedRows) {
+    const id = row[idIdx];
+    if (!id) continue;
+    const existingRow = existingById.get(id);
+    if (existingRow) {
+      await putValuesWithAccessToken(spreadsheetId, `${sheetTitle}!A${existingRow}`, [row], accessToken);
+    } else {
+      await appendValuesWithAccessToken(spreadsheetId, `${sheetTitle}!A1`, [row], accessToken);
+    }
+  }
+}
+
 // Server-side sync implementations (used by /api/google/sync)
 export async function serverSyncAll(spreadsheetId: string, sales: DailySales[], transactions: Transaction[], month: number, year: number) {
   const accessToken = await getAccessToken();
@@ -267,26 +375,48 @@ export async function serverSyncAll(spreadsheetId: string, sales: DailySales[], 
   const monthTransactions = transactions.filter(t => inMonth(new Date(t.date)));
 
   const sortedSales = [...monthSales].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const salesValues = [
-    ['Month', 'Date', 'Square Sales', 'Cash Collected', 'Total', 'Notes', 'Cash Holder'],
-    ...sortedSales.map(s => [monthName, new Date(s.date).toLocaleDateString(), s.squareSales, s.cashCollected, s.squareSales + s.cashCollected, s.notes || '', s.cashHolder || '']),
-  ];
+  const salesHeader = ['ID', 'Month', 'Date', 'Square Sales', 'Cash Collected', 'Total', 'Notes', 'Cash Holder'];
+  const salesRows = sortedSales.map(s => [
+    s.id,
+    monthName,
+    new Date(s.date).toLocaleDateString(),
+    String(s.squareSales),
+    String(s.cashCollected),
+    String(s.squareSales + s.cashCollected),
+    s.notes || '',
+    s.cashHolder || '',
+  ]);
 
   const sortedExpenses = monthTransactions
     .filter(t => t.type === 'expense')
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const expenseValues = [
-    ['Month', 'Date', 'Category', 'Amount', 'Payment Method', 'Description', 'Spent By', 'Notes'],
-    ...sortedExpenses.map(e => [monthName, new Date(e.date).toLocaleDateString(), e.category || '', e.amount, e.paymentMethod || '', e.description || '', e.spentBy || '', e.notes || '']),
-  ];
+  const expensesHeader = ['ID', 'Month', 'Date', 'Category', 'Amount', 'Payment Method', 'Description', 'Spent By', 'Notes'];
+  const expenseRows = sortedExpenses.map(e => [
+    e.id,
+    monthName,
+    new Date(e.date).toLocaleDateString(),
+    e.category || '',
+    String(e.amount),
+    e.paymentMethod || '',
+    e.description || '',
+    e.spentBy || '',
+    e.notes || '',
+  ]);
 
   const sortedPayouts = monthTransactions
     .filter(t => t.type === 'payout')
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const payoutsValues = [
-    ['Month', 'Date', 'Payee', 'Amount', 'Purpose', 'Payment Method', 'Notes'],
-    ...sortedPayouts.map(p => [monthName, new Date(p.date).toLocaleDateString(), p.payeeName || '', p.amount, p.purpose || '', p.paymentMethod || '', p.notes || '']),
-  ];
+  const payoutsHeader = ['ID', 'Month', 'Date', 'Payee', 'Amount', 'Purpose', 'Payment Method', 'Notes'];
+  const payoutsRows = sortedPayouts.map(p => [
+    p.id,
+    monthName,
+    new Date(p.date).toLocaleDateString(),
+    p.payeeName || '',
+    String(p.amount),
+    p.purpose || '',
+    p.paymentMethod || '',
+    p.notes || '',
+  ]);
 
   const totalSales = monthSales.reduce((s, v) => s + (v.squareSales + v.cashCollected), 0);
   const totalExpenses = monthTransactions.filter(t => t.type === 'expense').reduce((s, e) => s + e.amount, 0);
@@ -306,26 +436,25 @@ export async function serverSyncAll(spreadsheetId: string, sales: DailySales[], 
   const sid = spreadsheetId || process.env.GOOGLE_SHEET_ID || process.env.NEXT_PUBLIC_GOOGLE_SHEET_ID;
   if (!sid) throw new Error('Spreadsheet ID not configured');
 
-  await deleteMonthRows(sid, 'Sales', monthName, accessToken);
-  await deleteMonthRows(sid, 'Expenses', monthName, accessToken);
-  await deleteMonthRows(sid, 'Payouts', monthName, accessToken);
-  await deleteMonthRows(sid, 'Summary', monthName, accessToken);
+  await upsertSheetById(
+    sid,
+    { sheetTitle: 'Sales', header: salesHeader, monthName, rows: salesRows },
+    accessToken
+  );
+  await upsertSheetById(
+    sid,
+    { sheetTitle: 'Expenses', header: expensesHeader, monthName, rows: expenseRows },
+    accessToken
+  );
+  await upsertSheetById(
+    sid,
+    { sheetTitle: 'Payouts', header: payoutsHeader, monthName, rows: payoutsRows },
+    accessToken
+  );
 
-  await putValuesWithAccessToken(sid, 'Sales!A1', [salesValues[0]], accessToken);
-  await putValuesWithAccessToken(sid, 'Expenses!A1', [expenseValues[0]], accessToken);
-  await putValuesWithAccessToken(sid, 'Payouts!A1', [payoutsValues[0]], accessToken);
+  await deleteMonthRows(sid, 'Summary', monthName, accessToken);
   await putValuesWithAccessToken(sid, 'Summary!A1', [summaryValues[0]], accessToken);
   await putValuesWithAccessToken(sid, 'Summary!G1', cashHolderValues, accessToken);
-
-  const appendIfRows = async (range: string, values: SheetValues) => {
-    if (!values.length) return;
-    await appendValuesWithAccessToken(sid, range, values, accessToken);
-  };
-
-  await appendIfRows('Sales!A2', salesValues.slice(1));
-  await appendIfRows('Expenses!A2', expenseValues.slice(1));
-  await appendIfRows('Payouts!A2', payoutsValues.slice(1));
-  await appendIfRows('Summary!A2', summaryValues.slice(1));
 
   return { success: true };
 }

@@ -10,7 +10,7 @@ import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '@/lib/utils';
-import { useAutoSyncSheets } from '@/lib/useAutoSyncSheets';
+import { syncSheetsNow } from '@/lib/sheetsSync';
 import { endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function TransactionsPage() {
@@ -43,7 +43,11 @@ export default function TransactionsPage() {
     };
   }, [currentMonth, currentYear, storageVersion]);
 
-  useAutoSyncSheets(allSales, allTransactions, currentMonth, currentYear);
+  const runSync = () => {
+    const latestSales = storage.getSales();
+    const latestTransactions = storage.getTransactions();
+    void syncSheetsNow(latestSales, latestTransactions, currentMonth, currentYear);
+  };
 
   const handleAddTransaction = (transaction: Transaction) => {
     if (editingTransaction) {
@@ -54,6 +58,7 @@ export default function TransactionsPage() {
       storage.addTransaction(transaction);
       toast.success('Transaction recorded successfully');
     }
+    runSync();
     setShowForm(false);
   };
 
@@ -66,6 +71,7 @@ export default function TransactionsPage() {
     if (window.confirm('Are you sure you want to delete this transaction?')) {
       storage.deleteTransaction(id);
     toast.success('Transaction deleted');
+    runSync();
   }
   };
 

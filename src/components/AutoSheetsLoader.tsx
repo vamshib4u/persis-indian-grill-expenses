@@ -9,6 +9,7 @@ import { generateId } from '@/lib/utils';
 type SheetRows = string[][];
 
 const toKeyDate = (date: Date) => date.toISOString().split('T')[0];
+const LOAD_FLAG = 'persis_sheets_loaded';
 
 const parseSheetDate = (value: string) => {
   const num = Number(value);
@@ -26,6 +27,7 @@ const headerIndex = (headers: string[], name: string) =>
 const parseSales = (rows: SheetRows): DailySales[] => {
   if (!rows.length) return [];
   const headers = rows[0] || [];
+  const idIdx = headerIndex(headers, 'ID');
   const dateIdx = headerIndex(headers, 'Date');
   const squareIdx = headerIndex(headers, 'Square Sales');
   const cashIdx = headerIndex(headers, 'Cash Collected');
@@ -38,9 +40,10 @@ const parseSales = (rows: SheetRows): DailySales[] => {
     if (!date) return [];
     const squareSales = Number(row[squareIdx] || 0);
     const cashCollected = Number(row[cashIdx] || 0);
+    const idValue = idIdx >= 0 ? row[idIdx] : '';
     return [
       {
-        id: generateId(),
+        id: idValue || generateId(),
         date,
         squareSales,
         cashCollected,
@@ -55,6 +58,7 @@ const parseSales = (rows: SheetRows): DailySales[] => {
 const parseExpenses = (rows: SheetRows): Transaction[] => {
   if (!rows.length) return [];
   const headers = rows[0] || [];
+  const idIdx = headerIndex(headers, 'ID');
   const dateIdx = headerIndex(headers, 'Date');
   const categoryIdx = headerIndex(headers, 'Category');
   const amountIdx = headerIndex(headers, 'Amount');
@@ -67,9 +71,10 @@ const parseExpenses = (rows: SheetRows): Transaction[] => {
     const dateValue = row[dateIdx] || '';
     const date = parseSheetDate(dateValue);
     if (!date) return [];
+    const idValue = idIdx >= 0 ? row[idIdx] : '';
     return [
       {
-        id: generateId(),
+        id: idValue || generateId(),
         date,
         type: 'expense',
         category: row[categoryIdx] || '',
@@ -87,6 +92,7 @@ const parseExpenses = (rows: SheetRows): Transaction[] => {
 const parsePayouts = (rows: SheetRows): Transaction[] => {
   if (!rows.length) return [];
   const headers = rows[0] || [];
+  const idIdx = headerIndex(headers, 'ID');
   const dateIdx = headerIndex(headers, 'Date');
   const payeeIdx = headerIndex(headers, 'Payee');
   const amountIdx = headerIndex(headers, 'Amount');
@@ -98,9 +104,10 @@ const parsePayouts = (rows: SheetRows): Transaction[] => {
     const dateValue = row[dateIdx] || '';
     const date = parseSheetDate(dateValue);
     if (!date) return [];
+    const idValue = idIdx >= 0 ? row[idIdx] : '';
     return [
       {
-        id: generateId(),
+        id: idValue || generateId(),
         date,
         type: 'payout',
         category: 'Payout',
@@ -148,6 +155,8 @@ export const AutoSheetsLoader = () => {
         storage.setTransactions([...incomingExpenses, ...incomingPayouts]);
       } catch {
         toast.error('Failed to load from Google Sheets');
+      } finally {
+        sessionStorage.setItem(LOAD_FLAG, 'true');
       }
     };
 

@@ -10,7 +10,7 @@ import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, DollarSign, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '@/lib/utils';
-import { useAutoSyncSheets } from '@/lib/useAutoSyncSheets';
+import { syncSheetsNow } from '@/lib/sheetsSync';
 import { endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function SalesPage() {
@@ -43,7 +43,11 @@ export default function SalesPage() {
     };
   }, [currentMonth, currentYear, storageVersion]);
 
-  useAutoSyncSheets(allSales, allTransactions, currentMonth, currentYear);
+  const runSync = () => {
+    const latestSales = storage.getSales();
+    const latestTransactions = storage.getTransactions();
+    void syncSheetsNow(latestSales, latestTransactions, currentMonth, currentYear);
+  };
 
   const handleAddSale = (sale: DailySales) => {
     if (editingSale) {
@@ -54,6 +58,7 @@ export default function SalesPage() {
       storage.addSale(sale);
       toast.success('Sale recorded successfully');
     }
+    runSync();
     setShowForm(false);
   };
 
@@ -66,6 +71,7 @@ export default function SalesPage() {
     if (window.confirm('Are you sure you want to delete this sale?')) {
       storage.deleteSale(id);
     toast.success('Sale deleted');
+    runSync();
   }
   };
 
