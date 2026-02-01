@@ -1,13 +1,12 @@
 'use client';
 
 import { useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 import { storage } from '@/lib/storage';
 import { DailySales, Transaction } from '@/types';
 import { generateId } from '@/lib/utils';
 
 type SheetRows = string[][];
-
-const SESSION_KEY = 'persis_autoload_done';
 
 const toKeyDate = (date: Date) => date.toISOString().split('T')[0];
 
@@ -120,13 +119,21 @@ const parsePayouts = (rows: SheetRows): Transaction[] => {
 export const AutoSheetsLoader = () => {
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (sessionStorage.getItem(SESSION_KEY)) return;
-    sessionStorage.setItem(SESSION_KEY, 'true');
 
     const load = async () => {
       try {
-        const res = await fetch('/api/google/load');
-        if (!res.ok) return;
+        const res = await fetch('/api/google/load', { cache: 'no-store' });
+        if (!res.ok) {
+          let message = `Failed to load from Google Sheets (${res.status})`;
+          try {
+            const payload = (await res.json()) as { error?: string };
+            if (payload?.error) message = payload.error;
+          } catch {
+            // ignore json errors
+          }
+          toast.error(message);
+          return;
+        }
         const payload = (await res.json()) as {
           sales: SheetRows;
           expenses: SheetRows;
@@ -140,7 +147,7 @@ export const AutoSheetsLoader = () => {
         storage.setSales(incomingSales);
         storage.setTransactions([...incomingExpenses, ...incomingPayouts]);
       } catch {
-        // ignore auto-load failures to keep UI usable
+        toast.error('Failed to load from Google Sheets');
       }
     };
 
