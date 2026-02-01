@@ -12,11 +12,15 @@ export const syncSheetsNow = async (
   if (!sessionStorage.getItem('persis_sheets_loaded')) return;
 
   try {
-    await fetch('/api/google/sync', {
+    const res = await fetch('/api/google/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sales, transactions, month, year }),
     });
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(txt || `Sync failed (${res.status})`);
+    }
   } catch (error) {
     toast.error(`Sheets sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
