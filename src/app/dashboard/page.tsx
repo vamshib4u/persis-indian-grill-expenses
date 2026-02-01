@@ -3,6 +3,7 @@
 import { useMemo, useState, useSyncExternalStore } from 'react';
 import { generateMonthlyReport, formatCurrency } from '@/lib/utils';
 import { CashHoldingYearSummary } from '@/components/CashHoldingYearSummary';
+import { SheetsConnectionCard } from '@/components/SheetsConnectionCard';
 import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { TrendingUp, TrendingDown, DollarSign, BarChart3 } from 'lucide-react';
 
@@ -104,6 +105,8 @@ export default function Dashboard() {
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Dashboard</h1>
           <p className="text-gray-600">Yearly Revenue & Expense Overview</p>
         </div>
+
+        <SheetsConnectionCard />
 
         {/* Year Selector */}
         <div className="bg-white rounded-lg shadow p-4 mb-8">
