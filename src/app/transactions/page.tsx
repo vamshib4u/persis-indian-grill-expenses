@@ -5,6 +5,7 @@ import { Transaction } from '@/types';
 import { TransactionsList } from '@/components/TransactionsList';
 import { TransactionForm } from '@/components/TransactionForm';
 import { ExportButtons } from '@/components/ExportButtons';
+import { CashHoldingSummary } from '@/components/CashHoldingSummary';
 import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -20,7 +21,7 @@ export default function TransactionsPage() {
 
   const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
 
-  const { transactions, sales } = useMemo(() => {
+  const { transactions, sales, allSales, allTransactions } = useMemo(() => {
     void storageVersion;
     const allTransactions = storage.getTransactions();
     const allSales = storage.getSales();
@@ -37,10 +38,12 @@ export default function TransactionsPage() {
     return {
       transactions: monthlyTransactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
       sales: monthlySales,
+      allSales,
+      allTransactions,
     };
   }, [currentMonth, currentYear, storageVersion]);
 
-  useAutoSyncSheets(sales, transactions, currentMonth, currentYear);
+  useAutoSyncSheets(allSales, allTransactions, currentMonth, currentYear);
 
   const handleAddTransaction = (transaction: Transaction) => {
     if (editingTransaction) {
@@ -183,6 +186,13 @@ export default function TransactionsPage() {
             </div>
           </div>
         )}
+
+        <CashHoldingSummary
+          sales={allSales}
+          transactions={allTransactions}
+          month={currentMonth}
+          year={currentYear}
+        />
 
         <div className="bg-white rounded-lg shadow">
           {transactions.length > 0 ? (

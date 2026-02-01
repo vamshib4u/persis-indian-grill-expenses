@@ -4,6 +4,7 @@ import { useMemo, useState, useSyncExternalStore } from 'react';
 import { Transaction } from '@/types';
 import { PayoutsList } from '@/components/PayoutsList';
 import { PayoutForm } from '@/components/PayoutForm';
+import { CashHoldingSummary } from '@/components/CashHoldingSummary';
 import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, DollarSign, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -19,7 +20,7 @@ export default function PayoutsPage() {
 
   const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
 
-  const { payouts, monthSales, monthTransactions } = useMemo(() => {
+  const { payouts, allSales, allTransactions } = useMemo(() => {
     void storageVersion;
     const allTransactions = storage.getTransactions();
     const allSales = storage.getSales();
@@ -30,17 +31,14 @@ export default function PayoutsPage() {
       isWithinInterval(new Date(transaction.date), { start: monthStart, end: monthEnd })
     );
     const monthlyPayouts = monthlyTransactions.filter(t => t.type === 'payout');
-    const monthlySales = allSales.filter(sale =>
-      isWithinInterval(new Date(sale.date), { start: monthStart, end: monthEnd })
-    );
     return {
       payouts: monthlyPayouts.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
-      monthSales: monthlySales,
-      monthTransactions: monthlyTransactions,
+      allSales,
+      allTransactions,
     };
   }, [currentMonth, currentYear, storageVersion]);
 
-  useAutoSyncSheets(monthSales, monthTransactions, currentMonth, currentYear);
+  useAutoSyncSheets(allSales, allTransactions, currentMonth, currentYear);
 
   const handleAddPayout = (payout: Transaction) => {
     if (editingPayout) {
@@ -144,6 +142,13 @@ export default function PayoutsPage() {
             </div>
           </div>
         )}
+
+        <CashHoldingSummary
+          sales={allSales}
+          transactions={allTransactions}
+          month={currentMonth}
+          year={currentYear}
+        />
 
         <div className="bg-white rounded-lg shadow">
           {payouts.length > 0 ? (

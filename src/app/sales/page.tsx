@@ -5,6 +5,7 @@ import { DailySales } from '@/types';
 import { SalesList } from '@/components/SalesList';
 import { SalesForm } from '@/components/SalesForm';
 import { ExportButtons } from '@/components/ExportButtons';
+import { CashHoldingSummary } from '@/components/CashHoldingSummary';
 import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, DollarSign, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -20,7 +21,7 @@ export default function SalesPage() {
 
   const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
 
-  const { sales, transactions } = useMemo(() => {
+  const { sales, transactions, allSales, allTransactions } = useMemo(() => {
     void storageVersion;
     const allSales = storage.getSales();
     const allTransactions = storage.getTransactions();
@@ -37,10 +38,12 @@ export default function SalesPage() {
     return {
       sales: monthlySales.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
       transactions: monthlyTransactions,
+      allSales,
+      allTransactions,
     };
   }, [currentMonth, currentYear, storageVersion]);
 
-  useAutoSyncSheets(sales, transactions, currentMonth, currentYear);
+  useAutoSyncSheets(allSales, allTransactions, currentMonth, currentYear);
 
   const handleAddSale = (sale: DailySales) => {
     if (editingSale) {
@@ -181,27 +184,12 @@ export default function SalesPage() {
           </div>
         )}
 
-        {/* Cash Holder Breakdown */}
-        {sales.length > 0 && (
-          <div className="bg-white rounded-lg shadow p-6 mb-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Cash Held By Each Person</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              {['Vamshi', 'Raghu', 'Naresh', 'Nikki', 'Meenu', 'Pradeep'].map(holder => {
-                const holderCash = sales
-                  .filter(s => s.cashHolder === holder)
-                  .reduce((sum, s) => sum + s.cashCollected, 0);
-                return (
-                  <div key={holder} className="border border-gray-200 rounded-lg p-4 text-center">
-                    <p className="text-sm font-medium text-gray-600">{holder}</p>
-                    <p className="text-xl font-bold text-gray-900 mt-2">
-                      {formatCurrency(holderCash)}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        <CashHoldingSummary
+          sales={allSales}
+          transactions={allTransactions}
+          month={currentMonth}
+          year={currentYear}
+        />
 
         <div className="bg-white rounded-lg shadow">
           {sales.length > 0 ? (

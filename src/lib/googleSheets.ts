@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import { DailySales, Transaction } from '@/types';
+import { getCashHoldingSummary } from '@/lib/cashHolding';
 import fetch from 'node-fetch';
 import { saveTokens, loadTokens } from './serverStorage';
 
@@ -258,14 +259,20 @@ export async function serverSyncAll(spreadsheetId: string, sales: DailySales[], 
   const accessToken = await getAccessToken();
 
   const monthName = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
+  const monthStart = new Date(year, month, 1);
+  const monthEnd = new Date(year, month + 1, 0);
+  const inMonth = (date: Date) => date >= monthStart && date <= monthEnd;
 
-  const sortedSales = [...sales].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const monthSales = sales.filter(s => inMonth(new Date(s.date)));
+  const monthTransactions = transactions.filter(t => inMonth(new Date(t.date)));
+
+  const sortedSales = [...monthSales].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   const salesValues = [
     ['Month', 'Date', 'Square Sales', 'Cash Collected', 'Total', 'Notes', 'Cash Holder'],
     ...sortedSales.map(s => [monthName, new Date(s.date).toLocaleDateString(), s.squareSales, s.cashCollected, s.squareSales + s.cashCollected, s.notes || '', s.cashHolder || '']),
   ];
 
-  const sortedExpenses = transactions
+  const sortedExpenses = monthTransactions
     .filter(t => t.type === 'expense')
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   const expenseValues = [
@@ -273,7 +280,7 @@ export async function serverSyncAll(spreadsheetId: string, sales: DailySales[], 
     ...sortedExpenses.map(e => [monthName, new Date(e.date).toLocaleDateString(), e.category || '', e.amount, e.paymentMethod || '', e.description || '', e.spentBy || '', e.notes || '']),
   ];
 
-  const sortedPayouts = transactions
+  const sortedPayouts = monthTransactions
     .filter(t => t.type === 'payout')
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   const payoutsValues = [
@@ -281,24 +288,19 @@ export async function serverSyncAll(spreadsheetId: string, sales: DailySales[], 
     ...sortedPayouts.map(p => [monthName, new Date(p.date).toLocaleDateString(), p.payeeName || '', p.amount, p.purpose || '', p.paymentMethod || '', p.notes || '']),
   ];
 
-  const totalSales = sales.reduce((s, v) => s + (v.squareSales + v.cashCollected), 0);
-  const totalExpenses = transactions.filter(t => t.type === 'expense').reduce((s, e) => s + e.amount, 0);
-  const totalPayouts = transactions.filter(t => t.type === 'payout').reduce((s, p) => s + p.amount, 0);
+  const totalSales = monthSales.reduce((s, v) => s + (v.squareSales + v.cashCollected), 0);
+  const totalExpenses = monthTransactions.filter(t => t.type === 'expense').reduce((s, e) => s + e.amount, 0);
+  const totalPayouts = monthTransactions.filter(t => t.type === 'payout').reduce((s, p) => s + p.amount, 0);
   const summaryValues = [
     ['Month', 'Total Sales', 'Total Expenses', 'Total Payouts', 'Net Profit'],
     [monthName, totalSales, totalExpenses, totalPayouts, totalSales - totalExpenses - totalPayouts],
   ];
 
-  const cashHolderTotals = sales.reduce<Record<string, number>>((acc, s) => {
-    const holder = s.cashHolder?.trim() || 'Unassigned';
-    acc[holder] = (acc[holder] || 0) + (s.cashCollected || 0);
-    return acc;
-  }, {});
-  const totalCashCollected = sales.reduce((sum, s) => sum + (s.cashCollected || 0), 0);
+  const cashHolding = getCashHoldingSummary(sales, transactions, month, year);
   const cashHolderValues = [
-    ['Cash Holder', 'Cash Collected'],
-    ...Object.entries(cashHolderTotals).map(([holder, total]) => [holder, total]),
-    ['Total Cash', totalCashCollected],
+    ['Cash Holder', 'Opening Balance', 'Cash Collected', 'Cash Expenses', 'Closing Balance'],
+    ...cashHolding.rows.map(row => [row.name, row.opening, row.collected, row.expenses, row.closing]),
+    ['Total', cashHolding.totals.opening, cashHolding.totals.collected, cashHolding.totals.expenses, cashHolding.totals.closing],
   ];
 
   const sid = spreadsheetId || process.env.GOOGLE_SHEET_ID || process.env.NEXT_PUBLIC_GOOGLE_SHEET_ID;

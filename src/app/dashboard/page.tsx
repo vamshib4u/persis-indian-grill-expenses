@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useSyncExternalStore } from 'react';
 import { generateMonthlyReport, formatCurrency } from '@/lib/utils';
+import { CashHoldingSummary } from '@/components/CashHoldingSummary';
 import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { TrendingUp, TrendingDown, DollarSign, BarChart3 } from 'lucide-react';
 
@@ -19,7 +20,7 @@ export default function Dashboard() {
 
   const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
 
-  const { report, trend } = useMemo(() => {
+  const { report, trend, allSales, allTransactions } = useMemo(() => {
     void storageVersion;
     const sales = storage.getSales();
     const transactions = storage.getTransactions();
@@ -39,7 +40,7 @@ export default function Dashboard() {
       });
     }
 
-    return { report: monthlyReport, trend: points };
+    return { report: monthlyReport, trend: points, allSales: sales, allTransactions: transactions };
   }, [month, year, storageVersion]);
 
   const handlePreviousMonth = () => {
@@ -264,6 +265,13 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
+        <CashHoldingSummary
+          sales={allSales}
+          transactions={allTransactions}
+          month={month}
+          year={year}
+        />
       </div>
     </div>
   );

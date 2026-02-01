@@ -5,6 +5,7 @@ import { Loader } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { DailySales, Transaction } from '@/types';
 import { formatDate } from '@/lib/utils';
+import { getCashHoldingSummary } from '@/lib/cashHolding';
 
 type GoogleTokenResponse = {
   access_token?: string;
@@ -341,16 +342,11 @@ export function GoogleSheetsControls({ sales, transactions, month, year }: Props
       await putValuesToSheet('Summary!A1', [summaryValues[0]]);
       await appendValuesToSheet('Summary!A2', summaryValues.slice(1));
 
-      const cashHolderTotals = sales.reduce<Record<string, number>>((acc, s) => {
-        const holder = s.cashHolder?.trim() || 'Unassigned';
-        acc[holder] = (acc[holder] || 0) + (s.cashCollected || 0);
-        return acc;
-      }, {});
-      const totalCashCollected = sales.reduce((sum, s) => sum + (s.cashCollected || 0), 0);
+      const cashHolding = getCashHoldingSummary(sales, transactions, month, year);
       const cashHolderValues = [
-        ['Cash Holder', 'Cash Collected'],
-        ...Object.entries(cashHolderTotals).map(([holder, total]) => [holder, total]),
-        ['Total Cash', totalCashCollected],
+        ['Cash Holder', 'Opening Balance', 'Cash Collected', 'Cash Expenses', 'Closing Balance'],
+        ...cashHolding.rows.map(row => [row.name, row.opening, row.collected, row.expenses, row.closing]),
+        ['Total', cashHolding.totals.opening, cashHolding.totals.collected, cashHolding.totals.expenses, cashHolding.totals.closing],
       ];
       await putValuesToSheet('Summary!G1', cashHolderValues);
 

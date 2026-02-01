@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DailySales, Transaction } from '@/types';
 import { generateMonthlyReport, formatDate } from '@/lib/utils';
+import { getCashHoldingSummary } from '@/lib/cashHolding';
 
 export async function POST(request: NextRequest) {
   try {
@@ -71,17 +72,21 @@ export async function POST(request: NextRequest) {
       'Cash Collected': summary.unreportedCash,
     };
 
-    const cashHolderTotals = sales.reduce((acc: Record<string, number>, s: DailySales) => {
-      const holder = s.cashHolder?.trim() || 'Unassigned';
-      acc[holder] = (acc[holder] || 0) + (s.cashCollected || 0);
-      return acc;
-    }, {} as Record<string, number>);
-    const totalCashCollected = sales.reduce((sum, s: DailySales) => sum + (s.cashCollected || 0), 0);
-    const cashHolderSummary = Object.entries(cashHolderTotals).map(([holder, total]) => ({
-      'Cash Holder': holder,
-      'Cash Collected': total,
+    const cashHolding = getCashHoldingSummary(sales, transactions, month, year);
+    const cashHolderSummary = cashHolding.rows.map(row => ({
+      'Cash Holder': row.name,
+      'Opening Balance': row.opening,
+      'Cash Collected': row.collected,
+      'Cash Expenses': row.expenses,
+      'Closing Balance': row.closing,
     }));
-    cashHolderSummary.push({ 'Cash Holder': 'Total Cash', 'Cash Collected': totalCashCollected });
+    cashHolderSummary.push({
+      'Cash Holder': 'Total',
+      'Opening Balance': cashHolding.totals.opening,
+      'Cash Collected': cashHolding.totals.collected,
+      'Cash Expenses': cashHolding.totals.expenses,
+      'Closing Balance': cashHolding.totals.closing,
+    });
 
     // TODO: Implement actual Google Sheets API sync when OAuth is configured
     // For now, return the formatted data for manual entry or future integration

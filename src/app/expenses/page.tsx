@@ -4,6 +4,7 @@ import { useMemo, useState, useSyncExternalStore } from 'react';
 import { Transaction } from '@/types';
 import { ExpensesList } from '@/components/ExpensesList';
 import { ExpenseForm } from '@/components/ExpenseForm';
+import { CashHoldingSummary } from '@/components/CashHoldingSummary';
 import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -19,7 +20,7 @@ export default function ExpensesPage() {
 
   const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
 
-  const { expenses, monthSales, monthTransactions } = useMemo(() => {
+  const { expenses, allSales, allTransactions } = useMemo(() => {
     void storageVersion;
     const allTransactions = storage.getTransactions();
     const allSales = storage.getSales();
@@ -30,17 +31,14 @@ export default function ExpensesPage() {
       isWithinInterval(new Date(transaction.date), { start: monthStart, end: monthEnd })
     );
     const monthlyExpenses = monthlyTransactions.filter(t => t.type === 'expense');
-    const monthlySales = allSales.filter(sale =>
-      isWithinInterval(new Date(sale.date), { start: monthStart, end: monthEnd })
-    );
     return {
       expenses: monthlyExpenses.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
-      monthSales: monthlySales,
-      monthTransactions: monthlyTransactions,
+      allSales,
+      allTransactions,
     };
   }, [currentMonth, currentYear, storageVersion]);
 
-  useAutoSyncSheets(monthSales, monthTransactions, currentMonth, currentYear);
+  useAutoSyncSheets(allSales, allTransactions, currentMonth, currentYear);
 
   const handleAddExpense = (expense: Transaction) => {
     if (editingExpense) {
@@ -166,27 +164,12 @@ export default function ExpensesPage() {
           </div>
         )}
 
-        {/* Expense Breakdown by Person */}
-        {expenses.length > 0 && (
-          <div className="bg-white rounded-lg shadow p-6 mb-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Cash Spent By Each Person</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              {['Vamshi', 'Raghu', 'Naresh', 'Nikki', 'Meenu', 'Pradeep'].map(person => {
-                const personExpenses = expenses
-                  .filter(e => e.spentBy === person && e.paymentMethod === 'cash')
-                  .reduce((sum, e) => sum + e.amount, 0);
-                return (
-                  <div key={person} className="border border-gray-200 rounded-lg p-4 text-center">
-                    <p className="text-sm font-medium text-gray-600">{person}</p>
-                    <p className="text-xl font-bold text-gray-900 mt-2">
-                      {formatCurrency(personExpenses)}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        <CashHoldingSummary
+          sales={allSales}
+          transactions={allTransactions}
+          month={currentMonth}
+          year={currentYear}
+        />
 
         <div className="bg-white rounded-lg shadow">
           {expenses.length > 0 ? (
