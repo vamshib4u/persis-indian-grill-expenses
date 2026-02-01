@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useSyncExternalStore } from 'react';
 import { generateMonthlyReport, formatCurrency } from '@/lib/utils';
-import { CashHoldingSummary } from '@/components/CashHoldingSummary';
+import { CashHoldingYearSummary } from '@/components/CashHoldingYearSummary';
 import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { TrendingUp, TrendingDown, DollarSign, BarChart3 } from 'lucide-react';
 
@@ -266,10 +266,9 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <CashHoldingSummary
+        <CashHoldingYearSummary
           sales={allSales}
           transactions={allTransactions}
-          month={month}
           year={year}
         />
       </div>
