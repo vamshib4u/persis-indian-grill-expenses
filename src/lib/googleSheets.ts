@@ -374,11 +374,11 @@ export async function serverSyncAll(spreadsheetId: string, sales: DailySales[], 
   const monthSales = sales.filter(s => inMonth(new Date(s.date)));
   const monthTransactions = transactions.filter(t => inMonth(new Date(t.date)));
 
-  const sortedSales = [...monthSales].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const sortedSales = [...sales].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   const salesHeader = ['ID', 'Month', 'Date', 'Square Sales', 'Cash Collected', 'Total', 'Notes', 'Cash Holder'];
   const salesRows = sortedSales.map(s => [
     s.id,
-    monthName,
+    new Date(s.date).toLocaleString('default', { month: 'long', year: 'numeric' }),
     new Date(s.date).toLocaleDateString(),
     String(s.squareSales),
     String(s.cashCollected),
@@ -387,13 +387,13 @@ export async function serverSyncAll(spreadsheetId: string, sales: DailySales[], 
     s.cashHolder || '',
   ]);
 
-  const sortedExpenses = monthTransactions
+  const sortedExpenses = transactions
     .filter(t => t.type === 'expense')
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   const expensesHeader = ['ID', 'Month', 'Date', 'Category', 'Amount', 'Payment Method', 'Description', 'Spent By', 'Notes'];
   const expenseRows = sortedExpenses.map(e => [
     e.id,
-    monthName,
+    new Date(e.date).toLocaleString('default', { month: 'long', year: 'numeric' }),
     new Date(e.date).toLocaleDateString(),
     e.category || '',
     String(e.amount),
@@ -403,13 +403,13 @@ export async function serverSyncAll(spreadsheetId: string, sales: DailySales[], 
     e.notes || '',
   ]);
 
-  const sortedPayouts = monthTransactions
+  const sortedPayouts = transactions
     .filter(t => t.type === 'payout')
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   const payoutsHeader = ['ID', 'Month', 'Date', 'Payee', 'Amount', 'Purpose', 'Payment Method', 'Notes'];
   const payoutsRows = sortedPayouts.map(p => [
     p.id,
-    monthName,
+    new Date(p.date).toLocaleString('default', { month: 'long', year: 'numeric' }),
     new Date(p.date).toLocaleDateString(),
     p.payeeName || '',
     String(p.amount),
@@ -436,21 +436,32 @@ export async function serverSyncAll(spreadsheetId: string, sales: DailySales[], 
   const sid = spreadsheetId || process.env.GOOGLE_SHEET_ID || process.env.NEXT_PUBLIC_GOOGLE_SHEET_ID;
   if (!sid) throw new Error('Spreadsheet ID not configured');
 
-  await upsertSheetById(
-    sid,
-    { sheetTitle: 'Sales', header: salesHeader, monthName, rows: salesRows },
-    accessToken
-  );
-  await upsertSheetById(
-    sid,
-    { sheetTitle: 'Expenses', header: expensesHeader, monthName, rows: expenseRows },
-    accessToken
-  );
-  await upsertSheetById(
-    sid,
-    { sheetTitle: 'Payouts', header: payoutsHeader, monthName, rows: payoutsRows },
-    accessToken
-  );
+  const groupByMonth = (rows: Array<string[]>, monthIndex: number) => {
+    const map = new Map<string, string[][]>();
+    rows.forEach(r => {
+      const m = r[monthIndex] || '';
+      if (!m) return;
+      const bucket = map.get(m) || [];
+      bucket.push(r);
+      map.set(m, bucket);
+    });
+    return map;
+  };
+
+  const salesByMonth = groupByMonth(salesRows, 1);
+  for (const [m, rows] of salesByMonth.entries()) {
+    await upsertSheetById(sid, { sheetTitle: 'Sales', header: salesHeader, monthName: m, rows }, accessToken);
+  }
+
+  const expensesByMonth = groupByMonth(expenseRows, 1);
+  for (const [m, rows] of expensesByMonth.entries()) {
+    await upsertSheetById(sid, { sheetTitle: 'Expenses', header: expensesHeader, monthName: m, rows }, accessToken);
+  }
+
+  const payoutsByMonth = groupByMonth(payoutsRows, 1);
+  for (const [m, rows] of payoutsByMonth.entries()) {
+    await upsertSheetById(sid, { sheetTitle: 'Payouts', header: payoutsHeader, monthName: m, rows }, accessToken);
+  }
 
   await deleteMonthRows(sid, 'Summary', monthName, accessToken);
   await putValuesWithAccessToken(sid, 'Summary!A1', [summaryValues[0]], accessToken);
