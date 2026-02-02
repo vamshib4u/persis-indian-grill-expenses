@@ -15,7 +15,13 @@ export const syncSheetsNow = async (
     const res = await fetch('/api/google/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sales, transactions, month, year }),
+      body: JSON.stringify({
+        sales,
+        transactions,
+        month,
+        year,
+        spreadsheetId: process.env.NEXT_PUBLIC_GOOGLE_SHEET_ID,
+      }),
     });
     if (!res.ok) {
       const txt = await res.text();
