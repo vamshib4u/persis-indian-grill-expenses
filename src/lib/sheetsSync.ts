@@ -21,6 +21,7 @@ export const syncSheetsNow = async (
       const txt = await res.text();
       throw new Error(txt || `Sync failed (${res.status})`);
     }
+    toast.success('Sheets synced');
   } catch (error) {
     toast.error(`Sheets sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
