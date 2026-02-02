@@ -11,6 +11,12 @@ export async function POST(request: NextRequest) {
       success: true,
       message: 'Synced to Google Sheets',
       spreadsheetId: spreadsheetId || process.env.GOOGLE_SHEET_ID || process.env.NEXT_PUBLIC_GOOGLE_SHEET_ID,
+      debug: {
+        salesCount: sales?.length || 0,
+        transactionsCount: transactions?.length || 0,
+        month,
+        year,
+      },
     });
   } catch (error) {
     console.error('Server sync error', error);
