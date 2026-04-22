@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { generateMonthlyReport, formatCurrency } from '@/lib/utils';
 import { CashHoldingYearSummary } from '@/components/CashHoldingYearSummary';
-import { SheetsConnectionCard } from '@/components/SheetsConnectionCard';
 import { PersistenceStatusCard } from '@/components/PersistenceStatusCard';
 import { isStorageLoaded, isStorageLoading, storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { toast } from 'react-hot-toast';
@@ -115,7 +114,6 @@ export default function Dashboard() {
           <p className="text-gray-600">Yearly Revenue & Expense Overview</p>
         </div>
 
-        <SheetsConnectionCard />
         <PersistenceStatusCard />
 
         {!isStorageLoaded() && isStorageLoading() && (

@@ -11,7 +11,6 @@ import { isStorageLoaded, isStorageLoading, storage, getStorageVersion, subscrib
 import { Plus, DollarSign, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '@/lib/utils';
-import { syncSheetsNow } from '@/lib/sheetsSync';
 import { endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function SalesPage() {
@@ -51,12 +50,6 @@ export default function SalesPage() {
     };
   }, [currentMonth, currentYear, storageVersion]);
 
-  const runSync = () => {
-    const latestSales = storage.getSales();
-    const latestTransactions = storage.getTransactions();
-    void syncSheetsNow(latestSales, latestTransactions, currentMonth, currentYear);
-  };
-
   const handleAddSale = async (sale: DailySales) => {
     try {
       if (editingSale) {
@@ -67,7 +60,6 @@ export default function SalesPage() {
         await storage.addSale(sale);
         toast.success('Sale recorded successfully');
       }
-      runSync();
       setShowForm(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save sale';
@@ -85,7 +77,6 @@ export default function SalesPage() {
       try {
         await storage.deleteSale(id);
         toast.success('Sale deleted');
-        runSync();
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to delete sale';
         toast.error(message);

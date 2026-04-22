@@ -10,7 +10,6 @@ import { isStorageLoaded, isStorageLoading, storage, getStorageVersion, subscrib
 import { Plus, DollarSign, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '@/lib/utils';
-import { syncSheetsNow } from '@/lib/sheetsSync';
 import { endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function PayoutsPage() {
@@ -46,12 +45,6 @@ export default function PayoutsPage() {
     };
   }, [currentMonth, currentYear, storageVersion]);
 
-  const runSync = () => {
-    const latestSales = storage.getSales();
-    const latestTransactions = storage.getTransactions();
-    void syncSheetsNow(latestSales, latestTransactions, currentMonth, currentYear);
-  };
-
   const handleAddPayout = async (payout: Transaction) => {
     try {
       if (editingPayout) {
@@ -62,7 +55,6 @@ export default function PayoutsPage() {
         await storage.addPayout(payout);
         toast.success('Payout recorded successfully');
       }
-      runSync();
       setShowForm(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save payout';
@@ -80,7 +72,6 @@ export default function PayoutsPage() {
       try {
         await storage.deletePayout(id);
         toast.success('Payout deleted');
-        runSync();
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to delete payout';
         toast.error(message);

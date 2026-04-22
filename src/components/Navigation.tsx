@@ -1,13 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { BarChart3, DollarSign, CreditCard, Menu, X } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { BarChart3, DollarSign, CreditCard, LogOut, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 
 export const Navigation = () => {
   const pathname = usePathname();
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+
+  if (pathname === '/login') {
+    return null;
+  }
 
   const links = [
     { href: '/', label: 'Home', icon: BarChart3 },
@@ -17,6 +22,11 @@ export const Navigation = () => {
   ];
 
   const isActive = (href: string) => pathname === href;
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.replace('/login');
+    router.refresh();
+  };
 
   return (
     <nav className="bg-white shadow-sm sticky top-0 z-40">
@@ -28,7 +38,7 @@ export const Navigation = () => {
           </Link>
 
           {/* Desktop Menu */}
-          <div className="hidden md:flex items-center gap-8">
+          <div className="hidden md:flex items-center gap-4">
             {links.slice(1).map(link => {
               const Icon = link.icon;
               return (
@@ -46,6 +56,13 @@ export const Navigation = () => {
                 </Link>
               );
             })}
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+            >
+              <LogOut size={18} />
+              <span>Logout</span>
+            </button>
           </div>
 
           {/* Mobile Menu Button */}
@@ -78,6 +95,13 @@ export const Navigation = () => {
                 </Link>
               );
             })}
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors w-full text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+            >
+              <LogOut size={18} />
+              <span>Logout</span>
+            </button>
           </div>
         )}
       </div>

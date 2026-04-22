@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { Share2, Loader, FileJson, FileSpreadsheet } from 'lucide-react';
-import { GoogleSheetsControls } from './GoogleSheetsControls';
 import { toast } from 'react-hot-toast';
 import { DailySales, Transaction } from '@/types';
 import { exportSalesToJSON, exportTransactionsToJSON, generateMonthlyReport } from '@/lib/utils';
@@ -133,52 +132,15 @@ export function ExportButtons({ sales, transactions, month, year }: ExportButton
     }
   };
 
-  const handleSyncToGoogleSheets = async () => {
-    if (!process.env.NEXT_PUBLIC_GOOGLE_SHEET_ID) {
-      toast.error('Google Sheets not configured. Check IMPORT_JSON_TO_SHEETS.md');
-      return;
-    }
-
-    setIsSyncing(true);
-    try {
-      const response = await fetch('/api/sync-sheets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sales,
-          transactions,
-          month,
-          year,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      const result = await response.json();
-      
-      // Open Google Sheet in new tab
-      window.open(result.sheetsUrl, '_blank');
-      
-      toast.success('Opening Google Sheets... Download JSON and import using File → Import');
-    } catch (error) {
-      console.error('Sync error:', error);
-      toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
   return (
     <div className="space-y-4 mb-6">
       <div>
-        <p className="text-sm text-gray-600 mb-2">Export as CSV (for Google Sheets):</p>
+        <p className="text-sm text-gray-600 mb-2">Export as CSV:</p>
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => handleDownloadCSV('sales')}
             className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition"
-            title="Download as CSV - Import directly to Google Sheets"
+            title="Download sales as CSV"
           >
             <FileSpreadsheet size={16} />
             <span className="text-sm">Sales CSV</span>
@@ -186,7 +148,7 @@ export function ExportButtons({ sales, transactions, month, year }: ExportButton
           <button
             onClick={() => handleDownloadCSV('expenses')}
             className="flex items-center gap-2 px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition"
-            title="Download as CSV - Import directly to Google Sheets"
+            title="Download expenses as CSV"
           >
             <FileSpreadsheet size={16} />
             <span className="text-sm">Expenses CSV</span>
@@ -194,7 +156,7 @@ export function ExportButtons({ sales, transactions, month, year }: ExportButton
           <button
             onClick={() => handleDownloadCSV('payouts')}
             className="flex items-center gap-2 px-3 py-2 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 transition"
-            title="Download as CSV - Import directly to Google Sheets"
+            title="Download payouts as CSV"
           >
             <FileSpreadsheet size={16} />
             <span className="text-sm">Payouts CSV</span>
@@ -202,7 +164,7 @@ export function ExportButtons({ sales, transactions, month, year }: ExportButton
           <button
             onClick={() => handleDownloadCSV('all')}
             className="flex items-center gap-2 px-3 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition"
-            title="Download as CSV - Import directly to Google Sheets"
+            title="Download all data as CSV"
           >
             <FileSpreadsheet size={16} />
             <span className="text-sm">All Data CSV</span>
@@ -260,29 +222,6 @@ export function ExportButtons({ sales, transactions, month, year }: ExportButton
             {isSyncing ? <Loader size={16} className="animate-spin" /> : <Share2 size={16} />}
             <span className="text-sm">{isSyncing ? 'Saving...' : 'Save to GitHub'}</span>
           </button>
-          <button
-            onClick={handleSyncToGoogleSheets}
-            disabled={isSyncing}
-            className="flex items-center gap-2 px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition disabled:opacity-50"
-            title="Open Google Sheets"
-          >
-            {isSyncing ? <Loader size={16} className="animate-spin" /> : <Share2 size={16} />}
-            <span className="text-sm">{isSyncing ? 'Opening...' : 'Open Google Sheets'}</span>
-          </button>
-        </div>
-
-        {/* Google OAuth & direct Sheets API */}
-        <div className="mt-4">
-          <p className="text-sm text-gray-600 mb-2">Google Sheets (Direct):</p>
-          <div className="flex flex-wrap gap-2">
-            {/* Connect / Disconnect */}
-            <GoogleSheetsControls
-              sales={sales}
-              transactions={transactions}
-              month={month}
-              year={year}
-            />
-          </div>
         </div>
       </div>
     </div>

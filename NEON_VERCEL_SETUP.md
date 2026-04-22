@@ -1,6 +1,6 @@
 # Neon + Vercel Setup
 
-This app now stores sales and transactions in **Neon Postgres** through `DATABASE_URL`.
+This app now stores sales and transactions in **Neon Postgres** through `DATABASE_URL` and protects access with a login backed by environment variables.
 
 ## 1. Create the Neon database
 
@@ -16,7 +16,13 @@ DATABASE_URL=postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require
 
 1. Copy `.env.example` to `.env.local`.
 2. Set `DATABASE_URL` in `.env.local`.
-3. Keep the optional Google Sheets and GitHub variables if you still use those integrations.
+3. Add login credentials:
+
+```env
+APP_USERNAME=admin
+APP_PASSWORD=replace-with-a-strong-password
+AUTH_SECRET=replace-with-a-long-random-secret
+```
 
 ## 3. Run locally
 
@@ -39,12 +45,13 @@ The schema is created automatically the first time an API route touches the data
 1. Push the repo to GitHub.
 2. Import the repo into Vercel.
 3. Add `DATABASE_URL` from Neon.
-4. Add any optional `GOOGLE_*` or `GITHUB_*` variables if you use those features.
-5. Deploy.
+4. Add `APP_USERNAME`, `APP_PASSWORD`, and `AUTH_SECRET`.
+5. Add any optional `GITHUB_*` variables if you use the GitHub backup feature.
+6. Deploy.
 
 ## Notes
 
-- The app no longer relies on browser-only `localStorage` for primary data.
+- The app no longer relies on browser-only `localStorage` or Google Sheets for primary data.
 - Sales are stored in the `sales` table.
 - Expenses and payouts are stored in the `transactions` table.
-- Google Sheets import now replaces the Neon-backed dataset through the shared storage API.
+- Middleware protects the application and API routes behind a login session.
