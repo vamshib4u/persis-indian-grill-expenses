@@ -18,6 +18,7 @@ A comprehensive web application for managing monthly revenue, expenses, and cash
 - [Data Management](#data-management)
 - [Development](#development)
 - [Building & Deployment](#building--deployment)
+- [Documentation](#documentation)
 - [Troubleshooting](#troubleshooting)
 - [Future Enhancements](#future-enhancements)
 
@@ -178,6 +179,15 @@ Output:
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser. The application hot-reloads when you make changes.
+
+---
+
+## 📚 Documentation
+
+- `PROJECT_STANDARDS.md` - product and engineering standards for the application
+- `APPLICATION_FLOW_AND_REQUIREMENTS.md` - full system flow, requirements, and integration documentation
+- `.github/instructions/github-intstructions.instructions.md` - contributor instructions focused on safe, readable changes
+- `GITHUB_AND_SHEETS_SETUP.md` - setup steps for external integrations
 
 ---
 

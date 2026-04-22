@@ -1,12 +1,13 @@
 'use client';
 
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Transaction } from '@/types';
-import { TransactionsList } from '@/components/TransactionsList';
+import { ExpensesList } from '@/components/ExpensesList';
 import { TransactionForm } from '@/components/TransactionForm';
 import { ExportButtons } from '@/components/ExportButtons';
 import { CashHoldingCards } from '@/components/CashHoldingCards';
-import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
+import { PersistenceStatusCard } from '@/components/PersistenceStatusCard';
+import { isStorageLoaded, isStorageLoading, storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '@/lib/utils';
@@ -21,6 +22,13 @@ export default function TransactionsPage() {
 
   const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
 
+  useEffect(() => {
+    void storage.load().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Failed to load transactions';
+      toast.error(message);
+    });
+  }, []);
+
   const { transactions, sales, allSales, allTransactions } = useMemo(() => {
     void storageVersion;
     const allTransactions = storage.getTransactions();
@@ -28,9 +36,11 @@ export default function TransactionsPage() {
     const monthStart = new Date(currentYear, currentMonth, 1);
     const monthEnd = endOfMonth(monthStart);
 
-    const monthlyTransactions = allTransactions.filter(transaction =>
-      isWithinInterval(new Date(transaction.date), { start: monthStart, end: monthEnd })
-    );
+    const monthlyTransactions = allTransactions
+      .filter(transaction =>
+        isWithinInterval(new Date(transaction.date), { start: monthStart, end: monthEnd })
+      )
+      .filter(transaction => transaction.type === 'expense');
     const monthlySales = allSales.filter(sale =>
       isWithinInterval(new Date(sale.date), { start: monthStart, end: monthEnd })
     );
@@ -49,17 +59,22 @@ export default function TransactionsPage() {
     void syncSheetsNow(latestSales, latestTransactions, currentMonth, currentYear);
   };
 
-  const handleAddTransaction = (transaction: Transaction) => {
-    if (editingTransaction) {
-      storage.updateTransaction(transaction.id, transaction);
-      setEditingTransaction(null);
-      toast.success('Transaction updated successfully');
-    } else {
-      storage.addTransaction(transaction);
-      toast.success('Transaction recorded successfully');
+  const handleAddTransaction = async (transaction: Transaction) => {
+    try {
+      if (editingTransaction) {
+        await storage.updateTransaction(transaction.id, transaction);
+        setEditingTransaction(null);
+        toast.success('Expense updated successfully');
+      } else {
+        await storage.addTransaction(transaction);
+        toast.success('Expense recorded successfully');
+      }
+      runSync();
+      setShowForm(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save expense';
+      toast.error(message);
     }
-    runSync();
-    setShowForm(false);
   };
 
   const handleEditTransaction = (transaction: Transaction) => {
@@ -67,12 +82,17 @@ export default function TransactionsPage() {
     setShowForm(true);
   };
 
-  const handleDeleteTransaction = (id: string) => {
+  const handleDeleteTransaction = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this transaction?')) {
-      storage.deleteTransaction(id);
-    toast.success('Transaction deleted');
-    runSync();
-  }
+      try {
+        await storage.deleteTransaction(id);
+        toast.success('Expense deleted');
+        runSync();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to delete expense';
+        toast.error(message);
+      }
+    }
   };
 
   const handlePreviousMonth = () => {
@@ -94,12 +114,7 @@ export default function TransactionsPage() {
   };
 
   const monthName = new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long' });
-  const totalExpenses = transactions
-    .filter(t => t.type === 'expense')
-    .reduce((sum, t) => sum + t.amount, 0);
-  const totalPayouts = transactions
-    .filter(t => t.type === 'payout')
-    .reduce((sum, t) => sum + t.amount, 0);
+  const totalExpenses = transactions.reduce((sum, t) => sum + t.amount, 0);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -107,7 +122,7 @@ export default function TransactionsPage() {
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-4xl font-bold text-gray-900">Transactions</h1>
-            <p className="text-gray-600">Track all expenses and payouts</p>
+            <p className="text-gray-600">Track expense transactions</p>
           </div>
           <button
             onClick={() => {
@@ -117,11 +132,13 @@ export default function TransactionsPage() {
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             <Plus size={20} />
-            Add Transaction
+            Add Expense
           </button>
         </div>
 
         {/* Month Selector */}
+        <PersistenceStatusCard />
+
         <div className="bg-white rounded-lg shadow p-4 mb-8">
           <div className="flex justify-between items-center">
             <button
@@ -153,8 +170,14 @@ export default function TransactionsPage() {
         />
 
         {/* Summary Cards */}
+        {!isStorageLoaded() && isStorageLoading() && (
+          <div className="bg-white rounded-lg shadow p-6 mb-8 text-gray-600">
+            Loading expenses from Neon...
+          </div>
+        )}
+
         {transactions.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -170,20 +193,8 @@ export default function TransactionsPage() {
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-600 text-sm">Total Payouts</p>
-                  <p className="text-2xl font-bold text-orange-600 mt-2">{formatCurrency(totalPayouts)}</p>
-                </div>
-                <div className="bg-orange-100 p-3 rounded-lg">
-                  <TrendingDown size={24} className="text-orange-600" />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center justify-between">
-                <div>
                   <p className="text-gray-600 text-sm">Total Outflow</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-2">{formatCurrency(totalExpenses + totalPayouts)}</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-2">{formatCurrency(totalExpenses)}</p>
                 </div>
                 <div className="bg-gray-100 p-3 rounded-lg">
                   <TrendingDown size={24} className="text-gray-600" />
@@ -202,20 +213,20 @@ export default function TransactionsPage() {
 
         <div className="bg-white rounded-lg shadow">
           {transactions.length > 0 ? (
-            <TransactionsList
-              transactions={transactions}
+            <ExpensesList
+              expenses={transactions}
               onEdit={handleEditTransaction}
               onDelete={handleDeleteTransaction}
             />
           ) : (
             <div className="text-center py-12">
-              <p className="text-gray-500 text-lg">No transactions recorded for {monthName} {currentYear}</p>
+              <p className="text-gray-500 text-lg">No expenses recorded for {monthName} {currentYear}</p>
               <button
                 onClick={() => setShowForm(true)}
                 className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 <Plus size={20} />
-                Add First Transaction
+                Add First Expense
               </button>
             </div>
           )}
@@ -225,6 +236,7 @@ export default function TransactionsPage() {
       {showForm && (
         <TransactionForm
           transaction={editingTransaction}
+          fixedType="expense"
           onSubmit={handleAddTransaction}
           onClose={() => {
             setShowForm(false);

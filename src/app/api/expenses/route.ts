@@ -1,77 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import { listTransactions } from '@/lib/db';
 
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const action = searchParams.get('action');
+export const runtime = 'nodejs';
 
-  return NextResponse.json({
-    message: 'Expenses API endpoint',
-    action,
-  });
-}
-
-export async function POST(request: NextRequest) {
+export async function GET() {
   try {
-    const body = await request.json();
-
-    if (!body.date || !body.category || body.amount === undefined) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: body,
-      message: 'Expense recorded successfully',
-    });
-  } catch {
-    return NextResponse.json(
-      { error: 'Invalid request' },
-      { status: 400 }
-    );
+    const transactions = await listTransactions();
+    const expenses = transactions.filter((transaction) => transaction.type === 'expense');
+    return NextResponse.json({ expenses });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to load expenses';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-}
-
-export async function PUT(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { id } = body;
-
-    if (!id) {
-      return NextResponse.json(
-        { error: 'ID is required' },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: body,
-      message: 'Expense updated successfully',
-    });
-  } catch {
-    return NextResponse.json(
-      { error: 'Invalid request' },
-      { status: 400 }
-    );
-  }
-}
-
-export async function DELETE(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id');
-
-  if (!id) {
-    return NextResponse.json(
-      { error: 'ID is required' },
-      { status: 400 }
-    );
-  }
-
-  return NextResponse.json({
-    success: true,
-    message: 'Expense deleted successfully',
-  });
 }

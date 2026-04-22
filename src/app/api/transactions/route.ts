@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSale, deleteSale, listSales, updateSale } from '@/lib/db';
+import {
+  createTransaction,
+  deleteTransaction,
+  listTransactions,
+  updateTransaction,
+} from '@/lib/db';
 
 export const runtime = 'nodejs';
 
 export async function GET() {
   try {
-    const sales = await listSales();
-    return NextResponse.json({ sales });
+    const transactions = await listTransactions();
+    return NextResponse.json({ transactions });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to load sales';
+    const message = error instanceof Error ? error.message : 'Failed to load transactions';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -16,8 +21,8 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const sale = await createSale(body);
-    return NextResponse.json({ success: true, sale }, { status: 201 });
+    const transaction = await createTransaction(body);
+    return NextResponse.json({ success: true, transaction }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid request';
     return NextResponse.json({ error: message }, { status: 400 });
@@ -31,12 +36,12 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
     }
 
-    const sale = await updateSale(body);
-    if (!sale) {
-      return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
+    const transaction = await updateTransaction(body);
+    if (!transaction) {
+      return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, sale });
+    return NextResponse.json({ success: true, transaction });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid request';
     return NextResponse.json({ error: message }, { status: 400 });
@@ -52,14 +57,14 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const deleted = await deleteSale(id);
+    const deleted = await deleteTransaction(id);
     if (!deleted) {
-      return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to delete sale';
+    const message = error instanceof Error ? error.message : 'Failed to delete transaction';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

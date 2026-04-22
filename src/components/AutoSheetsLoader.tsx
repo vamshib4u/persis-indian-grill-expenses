@@ -8,7 +8,6 @@ import { generateId } from '@/lib/utils';
 
 type SheetRows = string[][];
 
-const toKeyDate = (date: Date) => date.toISOString().split('T')[0];
 const LOAD_FLAG = 'persis_sheets_loaded';
 
 const parseSheetDate = (value: string) => {
@@ -151,8 +150,10 @@ export const AutoSheetsLoader = () => {
         const incomingExpenses = parseExpenses(payload.expenses || []);
         const incomingPayouts = parsePayouts(payload.payouts || []);
 
-        storage.setSales(incomingSales);
-        storage.setTransactions([...incomingExpenses, ...incomingPayouts]);
+        await storage.replaceAll({
+          sales: incomingSales,
+          transactions: [...incomingExpenses, ...incomingPayouts],
+        });
       } catch {
         toast.error('Failed to load from Google Sheets');
       } finally {

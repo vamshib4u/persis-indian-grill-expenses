@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Transaction } from '@/types';
 import { ExpensesList } from '@/components/ExpensesList';
 import { ExpenseForm } from '@/components/ExpenseForm';
 import { CashHoldingSummary } from '@/components/CashHoldingSummary';
-import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
+import { PersistenceStatusCard } from '@/components/PersistenceStatusCard';
+import { isStorageLoaded, isStorageLoading, storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '@/lib/utils';
@@ -19,6 +20,13 @@ export default function ExpensesPage() {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
   const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
+
+  useEffect(() => {
+    void storage.load().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Failed to load expenses';
+      toast.error(message);
+    });
+  }, []);
 
   const { expenses, allSales, allTransactions } = useMemo(() => {
     void storageVersion;
@@ -44,17 +52,22 @@ export default function ExpensesPage() {
     void syncSheetsNow(latestSales, latestTransactions, currentMonth, currentYear);
   };
 
-  const handleAddExpense = (expense: Transaction) => {
-    if (editingExpense) {
-      storage.updateExpense(expense.id, expense);
-      setEditingExpense(null);
-      toast.success('Expense updated successfully');
-    } else {
-      storage.addExpense(expense);
-      toast.success('Expense recorded successfully');
+  const handleAddExpense = async (expense: Transaction) => {
+    try {
+      if (editingExpense) {
+        await storage.updateExpense(expense.id, expense);
+        setEditingExpense(null);
+        toast.success('Expense updated successfully');
+      } else {
+        await storage.addExpense(expense);
+        toast.success('Expense recorded successfully');
+      }
+      runSync();
+      setShowForm(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save expense';
+      toast.error(message);
     }
-    runSync();
-    setShowForm(false);
   };
 
   const handleEditExpense = (expense: Transaction) => {
@@ -62,12 +75,17 @@ export default function ExpensesPage() {
     setShowForm(true);
   };
 
-  const handleDeleteExpense = (id: string) => {
+  const handleDeleteExpense = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this expense?')) {
-      storage.deleteExpense(id);
-    toast.success('Expense deleted');
-    runSync();
-  }
+      try {
+        await storage.deleteExpense(id);
+        toast.success('Expense deleted');
+        runSync();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to delete expense';
+        toast.error(message);
+      }
+    }
   };
 
   const handlePreviousMonth = () => {
@@ -120,6 +138,8 @@ export default function ExpensesPage() {
         </div>
 
         {/* Month Selector */}
+        <PersistenceStatusCard />
+
         <div className="bg-white rounded-lg shadow p-4 mb-8">
           <div className="flex justify-between items-center">
             <button
@@ -143,6 +163,12 @@ export default function ExpensesPage() {
         </div>
 
         {/* Summary Card */}
+        {!isStorageLoaded() && isStorageLoading() && (
+          <div className="bg-white rounded-lg shadow p-6 mb-8 text-gray-600">
+            Loading expenses from Neon...
+          </div>
+        )}
+
         {expenses.length > 0 && (
           <div className="bg-white rounded-lg shadow p-6 mb-8">
             <div className="flex items-center justify-between mb-6">

@@ -28,6 +28,15 @@ type OAuthTokens = {
   [key: string]: unknown;
 };
 
+const withExpiryTimestamp = (tokens: OAuthTokens): OAuthTokens => {
+  if (tokens.expires_at) return tokens;
+  if (!tokens.expires_in) return tokens;
+  return {
+    ...tokens,
+    expires_at: Date.now() + tokens.expires_in * 1000,
+  };
+};
+
 const normalizeTokens = (raw: Record<string, unknown> | null): OAuthTokens | null => {
   if (!raw) return null;
   return {
@@ -62,7 +71,7 @@ export async function exchangeCodeForTokens(code: string, redirectUri: string) {
 
   const res = await fetch(TOKEN_ENDPOINT, { method: 'POST', body: params });
   if (!res.ok) throw new Error(`Token exchange failed: ${res.status} ${await res.text()}`);
-  const tokens = (await res.json()) as Record<string, unknown>;
+  const tokens = withExpiryTimestamp((await res.json()) as OAuthTokens);
   await saveTokens(tokens);
   return tokens;
 }
@@ -85,11 +94,11 @@ export async function refreshAccessToken() {
   const newTokens = normalizeTokens((await res.json()) as Record<string, unknown>) || {};
 
   // Merge new tokens with existing (preserve refresh_token if new one not returned)
-  const merged: OAuthTokens = {
+  const merged = withExpiryTimestamp({
     ...tokens,
     ...newTokens,
     refresh_token: newTokens.refresh_token || tokens.refresh_token,
-  };
+  });
   await saveTokens(merged);
   return merged;
 }
@@ -99,11 +108,8 @@ export async function getAccessToken(): Promise<string> {
   if (!tokens) throw new Error('Not authorized');
 
   // If access token expired or missing, refresh
-  if (!tokens.access_token || (tokens.expires_at && Date.now() > tokens.expires_at)) {
+  if (!tokens.access_token || !tokens.expires_at || Date.now() > tokens.expires_at) {
     const refreshed = await refreshAccessToken();
-    // set an approximate expires_at
-    refreshed.expires_at = Date.now() + (refreshed.expires_in || 3600) * 1000;
-    await saveTokens(refreshed);
     if (!refreshed.access_token) {
       throw new Error('Missing access token after refresh');
     }

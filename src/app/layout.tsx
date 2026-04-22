@@ -1,23 +1,12 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import { Navigation } from "@/components/Navigation";
-import { Toaster } from "react-hot-toast";
-import { AutoSheetsLoader } from "@/components/AutoSheetsLoader";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import type { Metadata } from 'next';
+import './globals.css';
+import { Navigation } from '@/components/Navigation';
+import { Toaster } from 'react-hot-toast';
+import { AutoSheetsLoader } from '@/components/AutoSheetsLoader';
 
 export const metadata: Metadata = {
-  title: "Persis Indian Grill - Revenue Management",
-  description: "Track daily sales, expenses, and payouts with Google Sheets integration",
+  title: 'Persis Indian Grill - Revenue Management',
+  description: 'Track daily sales, expenses, and payouts with Google Sheets integration',
 };
 
 export default function RootLayout({
@@ -27,9 +16,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className="antialiased">
         <Navigation />
         <AutoSheetsLoader />
         {children}

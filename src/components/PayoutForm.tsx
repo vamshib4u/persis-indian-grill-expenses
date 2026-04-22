@@ -7,7 +7,7 @@ import { X } from 'lucide-react';
 
 interface PayoutFormProps {
   payout?: Transaction | null;
-  onSubmit: (payout: Transaction) => void;
+  onSubmit: (payout: Transaction) => Promise<void>;
   onClose: () => void;
 }
 
@@ -20,7 +20,9 @@ export const PayoutForm = ({ payout, onSubmit, onClose }: PayoutFormProps) => {
     notes: payout?.notes || '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Parse date string to avoid timezone issues
@@ -41,8 +43,13 @@ export const PayoutForm = ({ payout, onSubmit, onClose }: PayoutFormProps) => {
       createdAt: payout?.createdAt || new Date(),
     };
 
-    onSubmit(newPayout);
-    onClose();
+    setSubmitting(true);
+    try {
+      await onSubmit(newPayout);
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -117,15 +124,17 @@ export const PayoutForm = ({ payout, onSubmit, onClose }: PayoutFormProps) => {
             <button
               type="button"
               onClick={onClose}
+              disabled={submitting}
               className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="submit"
+              disabled={submitting}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
             >
-              {payout ? 'Update' : 'Save'} Payout
+              {submitting ? 'Saving...' : `${payout ? 'Update' : 'Save'} Payout`}
             </button>
           </div>
         </form>

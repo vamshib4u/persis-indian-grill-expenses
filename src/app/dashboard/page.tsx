@@ -1,10 +1,12 @@
 'use client';
 
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { generateMonthlyReport, formatCurrency } from '@/lib/utils';
 import { CashHoldingYearSummary } from '@/components/CashHoldingYearSummary';
 import { SheetsConnectionCard } from '@/components/SheetsConnectionCard';
-import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
+import { PersistenceStatusCard } from '@/components/PersistenceStatusCard';
+import { isStorageLoaded, isStorageLoading, storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
+import { toast } from 'react-hot-toast';
 import { TrendingUp, TrendingDown, DollarSign, BarChart3 } from 'lucide-react';
 
 type TrendPoint = {
@@ -19,6 +21,13 @@ export default function Dashboard() {
   const [year, setYear] = useState(new Date().getFullYear());
 
   const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
+
+  useEffect(() => {
+    void storage.load().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Failed to load dashboard data';
+      toast.error(message);
+    });
+  }, []);
 
   const { report, trend, allSales, allTransactions } = useMemo(() => {
     void storageVersion;
@@ -107,6 +116,13 @@ export default function Dashboard() {
         </div>
 
         <SheetsConnectionCard />
+        <PersistenceStatusCard />
+
+        {!isStorageLoaded() && isStorageLoading() && (
+          <div className="bg-white rounded-lg shadow p-6 mb-8 text-gray-600">
+            Loading dashboard data from Neon...
+          </div>
+        )}
 
         {/* Year Selector */}
         <div className="bg-white rounded-lg shadow p-4 mb-8">

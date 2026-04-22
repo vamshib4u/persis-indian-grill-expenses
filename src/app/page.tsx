@@ -83,9 +83,9 @@ export default function Home() {
           <h2 className="text-2xl font-semibold text-gray-900 mb-6">Key Features</h2>
           <div className="grid md:grid-cols-3 gap-8">
             <div>
-              <h3 className="font-semibold text-gray-900 mb-2">Local Storage</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Neon Postgres</h3>
               <p className="text-gray-600 text-sm">
-                All data is stored locally in your browser for quick access and privacy.
+                Data is stored in a managed Postgres database, ready for Vercel deployment.
               </p>
             </div>
             <div>

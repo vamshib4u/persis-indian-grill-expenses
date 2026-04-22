@@ -24,14 +24,15 @@ const EXPENSE_CATEGORIES = [
 
 interface TransactionFormProps {
   transaction?: Transaction | null;
-  onSubmit: (transaction: Transaction) => void;
+  onSubmit: (transaction: Transaction) => Promise<void>;
   onClose: () => void;
+  fixedType?: 'expense' | 'payout';
 }
 
-export const TransactionForm = ({ transaction, onSubmit, onClose }: TransactionFormProps) => {
+export const TransactionForm = ({ transaction, onSubmit, onClose, fixedType }: TransactionFormProps) => {
   const [formData, setFormData] = useState({
     date: transaction ? new Date(transaction.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-    type: transaction?.type || 'expense',
+    type: transaction?.type || fixedType || 'expense',
     category: transaction?.category || '',
     amount: transaction?.amount || 0,
     paymentMethod: transaction?.paymentMethod || 'cash',
@@ -42,7 +43,9 @@ export const TransactionForm = ({ transaction, onSubmit, onClose }: TransactionF
     notes: transaction?.notes || '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const [year, month, day] = formData.date.split('-');
@@ -51,7 +54,7 @@ export const TransactionForm = ({ transaction, onSubmit, onClose }: TransactionF
     const newTransaction: Transaction = {
       id: transaction?.id || generateId(),
       date: dateObj,
-      type: formData.type as 'expense' | 'payout',
+      type: (fixedType || formData.type) as 'expense' | 'payout',
       category: formData.category,
       amount: parseFloat(formData.amount.toString()),
       paymentMethod: formData.paymentMethod as 'cash' | 'card' | 'bank_transfer',
@@ -63,8 +66,13 @@ export const TransactionForm = ({ transaction, onSubmit, onClose }: TransactionF
       createdAt: transaction?.createdAt || new Date(),
     };
 
-    onSubmit(newTransaction);
-    onClose();
+    setSubmitting(true);
+    try {
+      await onSubmit(newTransaction);
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -72,7 +80,17 @@ export const TransactionForm = ({ transaction, onSubmit, onClose }: TransactionF
       <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-lg max-h-screen overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">
-            {transaction ? 'Edit Transaction' : 'Record Transaction'}
+            {fixedType === 'expense'
+              ? transaction
+                ? 'Edit Expense'
+                : 'Record Expense'
+              : fixedType === 'payout'
+                ? transaction
+                  ? 'Edit Payout'
+                  : 'Record Payout'
+                : transaction
+                  ? 'Edit Transaction'
+                  : 'Record Transaction'}
           </h2>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
             <X size={20} />
@@ -91,20 +109,22 @@ export const TransactionForm = ({ transaction, onSubmit, onClose }: TransactionF
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-900 mb-1">Type</label>
-            <select
-              value={formData.type}
-              onChange={e => setFormData({ ...formData, type: e.target.value as 'expense' | 'payout', category: '' })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
-              required
-            >
-              <option value="expense">Expense</option>
-              <option value="payout">Payout</option>
-            </select>
-          </div>
+          {!fixedType && (
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-1">Type</label>
+              <select
+                value={formData.type}
+                onChange={e => setFormData({ ...formData, type: e.target.value as 'expense' | 'payout', category: '' })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
+                required
+              >
+                <option value="expense">Expense</option>
+                <option value="payout">Payout</option>
+              </select>
+            </div>
+          )}
 
-          {formData.type === 'expense' ? (
+          {(fixedType || formData.type) === 'expense' ? (
             <>
               <div>
                 <label className="block text-sm font-medium text-gray-900 mb-1">Category</label>
@@ -213,15 +233,17 @@ export const TransactionForm = ({ transaction, onSubmit, onClose }: TransactionF
             <button
               type="button"
               onClick={onClose}
+              disabled={submitting}
               className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="submit"
+              disabled={submitting}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
             >
-              {transaction ? 'Update' : 'Save'} Transaction
+              {submitting ? 'Saving...' : `${transaction ? 'Update' : 'Save'} Transaction`}
             </button>
           </div>
         </form>

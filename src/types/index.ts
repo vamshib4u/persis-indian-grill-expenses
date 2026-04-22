@@ -1,11 +1,11 @@
 export interface DailySales {
   id: string;
-  date: Date;
+  date: Date | string;
   squareSales: number;
   cashCollected: number;
   cashHolder: string;
   notes?: string;
-  createdAt: Date;
+  createdAt: Date | string;
 }
 
 export interface CashHolder {
@@ -15,7 +15,7 @@ export interface CashHolder {
 
 export interface Transaction {
   id: string;
-  date: Date;
+  date: Date | string;
   type: 'expense' | 'payout';
   category: string;
   amount: number;
@@ -25,7 +25,7 @@ export interface Transaction {
   payeeName?: string;
   purpose?: string;
   notes?: string;
-  createdAt: Date;
+  createdAt: Date | string;
 }
 
 export interface MonthlyReport {

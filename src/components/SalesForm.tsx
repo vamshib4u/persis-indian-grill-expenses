@@ -9,7 +9,7 @@ const CASH_HOLDERS = ['Vamshi', 'Raghu', 'Naresh', 'Nikki', 'Meenu', 'Pradeep'];
 
 interface SalesFormProps {
   sale?: DailySales | null;
-  onSubmit: (sale: DailySales) => void;
+  onSubmit: (sale: DailySales) => Promise<void>;
   onClose: () => void;
 }
 
@@ -22,7 +22,9 @@ export const SalesForm = ({ sale, onSubmit, onClose }: SalesFormProps) => {
     notes: sale?.notes || '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Parse date string to avoid timezone issues
@@ -39,8 +41,13 @@ export const SalesForm = ({ sale, onSubmit, onClose }: SalesFormProps) => {
       createdAt: sale?.createdAt || new Date(),
     };
 
-    onSubmit(newSale);
-    onClose();
+    setSubmitting(true);
+    try {
+      await onSubmit(newSale);
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -121,15 +128,17 @@ export const SalesForm = ({ sale, onSubmit, onClose }: SalesFormProps) => {
             <button
               type="button"
               onClick={onClose}
+              disabled={submitting}
               className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="submit"
+              disabled={submitting}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
             >
-              {sale ? 'Update' : 'Save'} Sale
+              {submitting ? 'Saving...' : `${sale ? 'Update' : 'Save'} Sale`}
             </button>
           </div>
         </form>

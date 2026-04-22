@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Transaction } from '@/types';
 import { PayoutsList } from '@/components/PayoutsList';
 import { PayoutForm } from '@/components/PayoutForm';
 import { CashHoldingSummary } from '@/components/CashHoldingSummary';
-import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
+import { PersistenceStatusCard } from '@/components/PersistenceStatusCard';
+import { isStorageLoaded, isStorageLoading, storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, DollarSign, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '@/lib/utils';
@@ -19,6 +20,13 @@ export default function PayoutsPage() {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
   const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
+
+  useEffect(() => {
+    void storage.load().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Failed to load payouts';
+      toast.error(message);
+    });
+  }, []);
 
   const { payouts, allSales, allTransactions } = useMemo(() => {
     void storageVersion;
@@ -44,17 +52,22 @@ export default function PayoutsPage() {
     void syncSheetsNow(latestSales, latestTransactions, currentMonth, currentYear);
   };
 
-  const handleAddPayout = (payout: Transaction) => {
-    if (editingPayout) {
-      storage.updatePayout(payout.id, payout);
-      setEditingPayout(null);
-      toast.success('Payout updated successfully');
-    } else {
-      storage.addPayout(payout);
-      toast.success('Payout recorded successfully');
+  const handleAddPayout = async (payout: Transaction) => {
+    try {
+      if (editingPayout) {
+        await storage.updatePayout(payout.id, payout);
+        setEditingPayout(null);
+        toast.success('Payout updated successfully');
+      } else {
+        await storage.addPayout(payout);
+        toast.success('Payout recorded successfully');
+      }
+      runSync();
+      setShowForm(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save payout';
+      toast.error(message);
     }
-    runSync();
-    setShowForm(false);
   };
 
   const handleEditPayout = (payout: Transaction) => {
@@ -62,12 +75,17 @@ export default function PayoutsPage() {
     setShowForm(true);
   };
 
-  const handleDeletePayout = (id: string) => {
+  const handleDeletePayout = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this payout?')) {
-      storage.deletePayout(id);
-    toast.success('Payout deleted');
-    runSync();
-  }
+      try {
+        await storage.deletePayout(id);
+        toast.success('Payout deleted');
+        runSync();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to delete payout';
+        toast.error(message);
+      }
+    }
   };
 
   const handlePreviousMonth = () => {
@@ -112,6 +130,8 @@ export default function PayoutsPage() {
         </div>
 
         {/* Month Selector */}
+        <PersistenceStatusCard />
+
         <div className="bg-white rounded-lg shadow p-4 mb-8">
           <div className="flex justify-between items-center">
             <button
@@ -135,6 +155,12 @@ export default function PayoutsPage() {
         </div>
 
         {/* Summary Card */}
+        {!isStorageLoaded() && isStorageLoading() && (
+          <div className="bg-white rounded-lg shadow p-6 mb-8 text-gray-600">
+            Loading payouts from Neon...
+          </div>
+        )}
+
         {payouts.length > 0 && (
           <div className="bg-white rounded-lg shadow p-6 mb-8">
             <div className="flex items-center justify-between">

@@ -1,12 +1,13 @@
 'use client';
 
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { DailySales } from '@/types';
 import { SalesList } from '@/components/SalesList';
 import { SalesForm } from '@/components/SalesForm';
 import { ExportButtons } from '@/components/ExportButtons';
 import { CashHoldingCards } from '@/components/CashHoldingCards';
-import { storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
+import { PersistenceStatusCard } from '@/components/PersistenceStatusCard';
+import { isStorageLoaded, isStorageLoading, storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, DollarSign, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '@/lib/utils';
@@ -20,6 +21,13 @@ export default function SalesPage() {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
   const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
+
+  useEffect(() => {
+    void storage.load().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Failed to load sales';
+      toast.error(message);
+    });
+  }, []);
 
   const { sales, transactions, allSales, allTransactions } = useMemo(() => {
     void storageVersion;
@@ -49,17 +57,22 @@ export default function SalesPage() {
     void syncSheetsNow(latestSales, latestTransactions, currentMonth, currentYear);
   };
 
-  const handleAddSale = (sale: DailySales) => {
-    if (editingSale) {
-      storage.updateSale(sale.id, sale);
-      setEditingSale(null);
-      toast.success('Sale updated successfully');
-    } else {
-      storage.addSale(sale);
-      toast.success('Sale recorded successfully');
+  const handleAddSale = async (sale: DailySales) => {
+    try {
+      if (editingSale) {
+        await storage.updateSale(sale.id, sale);
+        setEditingSale(null);
+        toast.success('Sale updated successfully');
+      } else {
+        await storage.addSale(sale);
+        toast.success('Sale recorded successfully');
+      }
+      runSync();
+      setShowForm(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save sale';
+      toast.error(message);
     }
-    runSync();
-    setShowForm(false);
   };
 
   const handleEditSale = (sale: DailySales) => {
@@ -67,12 +80,17 @@ export default function SalesPage() {
     setShowForm(true);
   };
 
-  const handleDeleteSale = (id: string) => {
+  const handleDeleteSale = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this sale?')) {
-      storage.deleteSale(id);
-    toast.success('Sale deleted');
-    runSync();
-  }
+      try {
+        await storage.deleteSale(id);
+        toast.success('Sale deleted');
+        runSync();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to delete sale';
+        toast.error(message);
+      }
+    }
   };
 
   const handlePreviousMonth = () => {
@@ -119,6 +137,8 @@ export default function SalesPage() {
         </div>
 
         {/* Month Selector */}
+        <PersistenceStatusCard />
+
         <div className="bg-white rounded-lg shadow p-4 mb-8">
           <div className="flex justify-between items-center">
             <button
@@ -150,6 +170,12 @@ export default function SalesPage() {
         />
 
         {/* Summary Cards */}
+        {!isStorageLoaded() && isStorageLoading() && (
+          <div className="bg-white rounded-lg shadow p-6 mb-8 text-gray-600">
+            Loading sales from Neon...
+          </div>
+        )}
+
         {sales.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             <div className="bg-white rounded-lg shadow p-6">
