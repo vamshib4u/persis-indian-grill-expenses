@@ -3,47 +3,12 @@ import { NextRequest } from 'next/server';
 import { createHash } from 'crypto';
 import { AppUser, Restaurant, SessionData, UserRole } from '@/types';
 import { getUserById, getUserByUsername, listRestaurants } from '@/lib/db';
-
-const SESSION_COOKIE = 'persis_session';
-const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 7;
-
-const textEncoder = new TextEncoder();
-
-type SessionTokenPayload = {
-  userId: string;
-  activeRestaurantId: string;
-  expiresAt: number;
-};
-
-const base64UrlEncode = (input: string) =>
-  Buffer.from(input, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-
-const base64UrlDecode = (input: string) => {
-  const normalized = input.replace(/-/g, '+').replace(/_/g, '/');
-  const padding = normalized.length % 4 === 0 ? '' : '='.repeat(4 - (normalized.length % 4));
-  return Buffer.from(`${normalized}${padding}`, 'base64').toString('utf8');
-};
-
-const getAuthSecret = () => {
-  const secret = process.env.AUTH_SECRET;
-  if (!secret) {
-    throw new Error('AUTH_SECRET is not configured');
-  }
-  return secret;
-};
-
-const sign = async (payload: string) => {
-  const key = await crypto.subtle.importKey(
-    'raw',
-    textEncoder.encode(getAuthSecret()),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-
-  const signature = await crypto.subtle.sign('HMAC', key, textEncoder.encode(payload));
-  return Buffer.from(signature).toString('base64url');
-};
+import {
+  createSessionToken,
+  getSessionCookieName,
+  getSessionMaxAge,
+  verifySessionToken,
+} from '@/lib/authToken';
 
 const normalizeUser = (user: {
   id: string;
@@ -68,8 +33,6 @@ const getDefaultSuperAdminCredentials = () => ({
   password: process.env.SUPER_ADMIN_PASSWORD || 'superadmin123',
 });
 
-export const getSessionCookieName = () => SESSION_COOKIE;
-export const getSessionMaxAge = () => Math.floor(SESSION_DURATION_MS / 1000);
 export const getPasswordHash = hashPassword;
 export const getDefaultRestaurantCredentials = () => {
   const username = process.env.APP_USERNAME;
@@ -84,46 +47,6 @@ export const getDefaultRestaurantCredentials = () => {
 export const getSuperAdminSeedCredentials = () => getDefaultSuperAdminCredentials();
 
 export const verifyPassword = (password: string, passwordHash: string) => hashPassword(password) === passwordHash;
-
-export const createSessionToken = async (payload: {
-  userId: string;
-  activeRestaurantId: string;
-}) => {
-  const expiresAt = Date.now() + SESSION_DURATION_MS;
-  const tokenPayload: SessionTokenPayload = { ...payload, expiresAt };
-  const serialized = JSON.stringify(tokenPayload);
-  const signature = await sign(serialized);
-  return `${base64UrlEncode(serialized)}.${signature}`;
-};
-
-export const verifySessionToken = async (token: string | undefined) => {
-  if (!token) return null;
-
-  const [encodedPayload, signature] = token.split('.');
-  if (!encodedPayload || !signature) return null;
-
-  const payload = base64UrlDecode(encodedPayload);
-  const expectedSignature = await sign(payload);
-  if (signature !== expectedSignature) return null;
-
-  let parsed: SessionTokenPayload;
-  try {
-    parsed = JSON.parse(payload) as SessionTokenPayload;
-  } catch {
-    return null;
-  }
-
-  if (
-    !parsed.userId ||
-    !parsed.activeRestaurantId ||
-    Number.isNaN(parsed.expiresAt) ||
-    Date.now() > parsed.expiresAt
-  ) {
-    return null;
-  }
-
-  return parsed;
-};
 
 const resolveRestaurantsForUser = (user: AppUser, restaurants: Restaurant[]) => {
   if (user.role === 'super_admin') return restaurants;
@@ -182,3 +105,5 @@ export const canAccessRestaurant = (session: SessionData, restaurantId: string) 
   session.restaurants.some((restaurant) => restaurant.id === restaurantId);
 
 export const getDefaultRestaurantIdForUser = (user: AppUser) => user.restaurantId || '';
+
+export { createSessionToken, getSessionCookieName, getSessionMaxAge };

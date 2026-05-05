@@ -30,6 +30,7 @@ export async function PATCH(request: NextRequest) {
 
   const token = await createSessionToken({
     userId: session.user.id,
+    role: session.user.role,
     activeRestaurantId: restaurantId,
   });
   const response = NextResponse.json({

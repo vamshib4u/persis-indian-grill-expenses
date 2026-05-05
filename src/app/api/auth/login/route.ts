@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
 
     const token = await createSessionToken({
       userId: session.user.id,
+      role: session.user.role,
       activeRestaurantId: session.activeRestaurantId,
     });
     const response = NextResponse.json({ success: true, session });
