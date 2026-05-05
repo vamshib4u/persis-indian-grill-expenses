@@ -9,10 +9,17 @@ import { getStorageVersion, storage, subscribeToStorage } from '@/lib/storage';
 export const Navigation = () => {
   const pathname = usePathname();
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
 
-  if (pathname === '/login') {
+  // Avoid returning different markup between server and client on first render.
+  // Only hide the navigation after the component has mounted on the client.
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (pathname === '/login' && mounted) {
     return null;
   }
 
