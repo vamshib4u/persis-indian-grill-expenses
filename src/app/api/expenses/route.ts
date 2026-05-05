@@ -1,11 +1,17 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getSessionFromRequest } from '@/lib/auth';
 import { listTransactions } from '@/lib/db';
 
 export const runtime = 'nodejs';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const transactions = await listTransactions();
+    const session = await getSessionFromRequest(request);
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const transactions = await listTransactions(session.activeRestaurantId);
     const expenses = transactions.filter((transaction) => transaction.type === 'expense');
     return NextResponse.json({ expenses });
   } catch (error) {

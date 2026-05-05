@@ -1,15 +1,27 @@
-import { DailySales, Transaction } from '@/types';
+import {
+  CashHolderConfig,
+  CateringOrder,
+  DailySales,
+  SessionData,
+  Transaction,
+} from '@/types';
 import { setPostgresStatus } from '@/lib/persistenceStatus';
 
 type BootstrapPayload = {
   sales: DailySales[];
   transactions: Transaction[];
+  cateringOrders: CateringOrder[];
+  cashHolders: CashHolderConfig[];
+  session: SessionData;
 };
 
 const STORAGE_EVENT = 'persis-storage-change';
 
 let salesCache: DailySales[] = [];
 let transactionsCache: Transaction[] = [];
+let cateringOrdersCache: CateringOrder[] = [];
+let cashHoldersCache: CashHolderConfig[] = [];
+let sessionCache: SessionData | null = null;
 let storageVersion = 0;
 let initialized = false;
 let loading = false;
@@ -63,8 +75,18 @@ const request = async <T>(input: RequestInfo, init?: RequestInit): Promise<T> =>
 const replaceCache = (payload: BootstrapPayload) => {
   salesCache = payload.sales;
   transactionsCache = payload.transactions;
+  cateringOrdersCache = payload.cateringOrders;
+  cashHoldersCache = payload.cashHolders;
+  sessionCache = payload.session;
   initialized = true;
   notifyChange();
+};
+
+const getActiveRestaurantId = () => {
+  if (!sessionCache) {
+    throw new Error('Session is not loaded');
+  }
+  return sessionCache.activeRestaurantId;
 };
 
 export const storage = {
@@ -93,19 +115,38 @@ export const storage = {
 
   getSales: () => salesCache,
   getTransactions: () => transactionsCache,
+  getCateringOrders: () => cateringOrdersCache,
+  getCashHolders: () => cashHoldersCache,
+  getSession: () => sessionCache,
+  getActiveRestaurant: () => {
+    const session = sessionCache;
+    if (!session) return null;
+    return session.restaurants.find((restaurant) => restaurant.id === session.activeRestaurantId) || null;
+  },
+
+  async switchRestaurant(restaurantId: string) {
+    const payload = await request<{ session: SessionData }>('/api/auth/session', {
+      method: 'PATCH',
+      body: JSON.stringify({ restaurantId }),
+    });
+    sessionCache = payload.session;
+    notifyChange();
+    await storage.load(true);
+  },
 
   async addSale(sale: DailySales) {
     const snapshot = salesCache;
-    salesCache = [...salesCache, sale];
+    const nextSale = { ...sale, restaurantId: getActiveRestaurantId() };
+    salesCache = [...salesCache, nextSale];
     notifyChange();
 
     try {
       setPostgresStatus('loading', 'Saving to Postgres');
       const payload = await request<{ sale: DailySales }>('/api/sales', {
         method: 'POST',
-        body: JSON.stringify(sale),
+        body: JSON.stringify(nextSale),
       });
-      salesCache = salesCache.map((entry) => (entry.id === sale.id ? payload.sale : entry));
+      salesCache = salesCache.map((entry) => (entry.id === nextSale.id ? payload.sale : entry));
       initialized = true;
       setPostgresStatus('saved', 'Saved to Postgres');
       notifyChange();
@@ -119,14 +160,15 @@ export const storage = {
 
   async updateSale(id: string, updates: DailySales) {
     const snapshot = salesCache;
-    salesCache = salesCache.map((sale) => (sale.id === id ? updates : sale));
+    const nextSale = { ...updates, restaurantId: getActiveRestaurantId() };
+    salesCache = salesCache.map((sale) => (sale.id === id ? nextSale : sale));
     notifyChange();
 
     try {
       setPostgresStatus('loading', 'Saving to Postgres');
       const payload = await request<{ sale: DailySales }>('/api/sales', {
         method: 'PUT',
-        body: JSON.stringify(updates),
+        body: JSON.stringify(nextSale),
       });
       salesCache = salesCache.map((sale) => (sale.id === id ? payload.sale : sale));
       setPostgresStatus('saved', 'Saved to Postgres');
@@ -146,7 +188,10 @@ export const storage = {
 
     try {
       setPostgresStatus('loading', 'Deleting from Postgres');
-      await request(`/api/sales?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      await request(
+        `/api/sales?id=${encodeURIComponent(id)}&restaurantId=${encodeURIComponent(getActiveRestaurantId())}`,
+        { method: 'DELETE' }
+      );
       setPostgresStatus('saved', 'Saved to Postgres');
     } catch (error) {
       salesCache = snapshot;
@@ -158,17 +203,18 @@ export const storage = {
 
   async addTransaction(transaction: Transaction) {
     const snapshot = transactionsCache;
-    transactionsCache = [...transactionsCache, transaction];
+    const nextTransaction = { ...transaction, restaurantId: getActiveRestaurantId() };
+    transactionsCache = [...transactionsCache, nextTransaction];
     notifyChange();
 
     try {
       setPostgresStatus('loading', 'Saving to Postgres');
       const payload = await request<{ transaction: Transaction }>('/api/transactions', {
         method: 'POST',
-        body: JSON.stringify(transaction),
+        body: JSON.stringify(nextTransaction),
       });
       transactionsCache = transactionsCache.map((entry) =>
-        entry.id === transaction.id ? payload.transaction : entry
+        entry.id === nextTransaction.id ? payload.transaction : entry
       );
       initialized = true;
       setPostgresStatus('saved', 'Saved to Postgres');
@@ -183,8 +229,9 @@ export const storage = {
 
   async updateTransaction(id: string, updates: Transaction) {
     const snapshot = transactionsCache;
+    const nextTransaction = { ...updates, restaurantId: getActiveRestaurantId() };
     transactionsCache = transactionsCache.map((transaction) =>
-      transaction.id === id ? updates : transaction
+      transaction.id === id ? nextTransaction : transaction
     );
     notifyChange();
 
@@ -192,7 +239,7 @@ export const storage = {
       setPostgresStatus('loading', 'Saving to Postgres');
       const payload = await request<{ transaction: Transaction }>('/api/transactions', {
         method: 'PUT',
-        body: JSON.stringify(updates),
+        body: JSON.stringify(nextTransaction),
       });
       transactionsCache = transactionsCache.map((transaction) =>
         transaction.id === id ? payload.transaction : transaction
@@ -214,7 +261,10 @@ export const storage = {
 
     try {
       setPostgresStatus('loading', 'Deleting from Postgres');
-      await request(`/api/transactions?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      await request(
+        `/api/transactions?id=${encodeURIComponent(id)}&restaurantId=${encodeURIComponent(getActiveRestaurantId())}`,
+        { method: 'DELETE' }
+      );
       setPostgresStatus('saved', 'Saved to Postgres');
     } catch (error) {
       transactionsCache = snapshot;
@@ -264,29 +314,119 @@ export const storage = {
     await storage.deleteTransaction(id);
   },
 
-  async replaceAll(payload: BootstrapPayload) {
+  async addCateringOrder(cateringOrder: CateringOrder) {
+    const snapshot = cateringOrdersCache;
+    const nextOrder = { ...cateringOrder, restaurantId: getActiveRestaurantId() };
+    cateringOrdersCache = [...cateringOrdersCache, nextOrder];
+    notifyChange();
+
+    try {
+      setPostgresStatus('loading', 'Saving to Postgres');
+      const payload = await request<{ cateringOrder: CateringOrder }>('/api/catering', {
+        method: 'POST',
+        body: JSON.stringify(nextOrder),
+      });
+      cateringOrdersCache = cateringOrdersCache.map((entry) =>
+        entry.id === nextOrder.id ? payload.cateringOrder : entry
+      );
+      initialized = true;
+      setPostgresStatus('saved', 'Saved to Postgres');
+      notifyChange();
+    } catch (error) {
+      cateringOrdersCache = snapshot;
+      setPostgresStatus('error', error instanceof Error ? error.message : 'Failed to save to Postgres');
+      notifyChange();
+      throw error;
+    }
+  },
+
+  async updateCateringOrder(id: string, updates: CateringOrder) {
+    const snapshot = cateringOrdersCache;
+    const nextOrder = { ...updates, restaurantId: getActiveRestaurantId() };
+    cateringOrdersCache = cateringOrdersCache.map((order) => (order.id === id ? nextOrder : order));
+    notifyChange();
+
+    try {
+      setPostgresStatus('loading', 'Saving to Postgres');
+      const payload = await request<{ cateringOrder: CateringOrder }>('/api/catering', {
+        method: 'PUT',
+        body: JSON.stringify(nextOrder),
+      });
+      cateringOrdersCache = cateringOrdersCache.map((order) =>
+        order.id === id ? payload.cateringOrder : order
+      );
+      setPostgresStatus('saved', 'Saved to Postgres');
+      notifyChange();
+    } catch (error) {
+      cateringOrdersCache = snapshot;
+      setPostgresStatus('error', error instanceof Error ? error.message : 'Failed to save to Postgres');
+      notifyChange();
+      throw error;
+    }
+  },
+
+  async deleteCateringOrder(id: string) {
+    const snapshot = cateringOrdersCache;
+    cateringOrdersCache = cateringOrdersCache.filter((order) => order.id !== id);
+    notifyChange();
+
+    try {
+      setPostgresStatus('loading', 'Deleting from Postgres');
+      await request(
+        `/api/catering?id=${encodeURIComponent(id)}&restaurantId=${encodeURIComponent(getActiveRestaurantId())}`,
+        { method: 'DELETE' }
+      );
+      setPostgresStatus('saved', 'Saved to Postgres');
+    } catch (error) {
+      cateringOrdersCache = snapshot;
+      setPostgresStatus('error', error instanceof Error ? error.message : 'Failed to delete from Postgres');
+      notifyChange();
+      throw error;
+    }
+  },
+
+  async replaceAll(payload: {
+    sales: DailySales[];
+    transactions: Transaction[];
+    cateringOrders: CateringOrder[];
+  }) {
     const snapshot = {
       sales: salesCache,
       transactions: transactionsCache,
+      cateringOrders: cateringOrdersCache,
+      cashHolders: cashHoldersCache,
+      session: sessionCache,
     };
-    replaceCache(payload);
+
+    salesCache = payload.sales;
+    transactionsCache = payload.transactions;
+    cateringOrdersCache = payload.cateringOrders;
+    notifyChange();
 
     try {
       setPostgresStatus('loading', 'Replacing Postgres data');
       const result = await request<BootstrapPayload>('/api/bootstrap', {
         method: 'PUT',
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...payload,
+          restaurantId: getActiveRestaurantId(),
+        }),
       });
       replaceCache(result);
       setPostgresStatus('saved', 'Saved to Postgres');
     } catch (error) {
-      replaceCache(snapshot);
+      salesCache = snapshot.sales;
+      transactionsCache = snapshot.transactions;
+      cateringOrdersCache = snapshot.cateringOrders;
+      cashHoldersCache = snapshot.cashHolders;
+      sessionCache = snapshot.session;
+      notifyChange();
       setPostgresStatus('error', error instanceof Error ? error.message : 'Failed to replace Postgres data');
       throw error;
     }
   },
 
   clearAll: async () => {
-    await storage.replaceAll({ sales: [], transactions: [] });
+    await storage.replaceAll({ sales: [], transactions: [], cateringOrders: [] });
   },
 };

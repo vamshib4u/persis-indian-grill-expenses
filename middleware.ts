@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionCookieName, verifySessionToken } from '@/lib/auth';
+import { getSessionFromRequest } from '@/lib/auth';
 
 const PUBLIC_PATHS = ['/login', '/api/auth/login'];
 
@@ -14,8 +14,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = request.cookies.get(getSessionCookieName())?.value;
-  const session = await verifySessionToken(token);
+  const session = await getSessionFromRequest(request);
 
   if (PUBLIC_PATHS.includes(pathname)) {
     if (session && pathname === '/login') {
@@ -30,6 +29,15 @@ export async function middleware(request: NextRequest) {
     }
 
     return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) {
+    if (session.user.role !== 'super_admin') {
+      if (pathname.startsWith('/api/')) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
   }
 
   return NextResponse.next();

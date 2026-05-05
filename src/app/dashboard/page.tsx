@@ -28,10 +28,13 @@ export default function Dashboard() {
     });
   }, []);
 
-  const { report, trend, allSales, allTransactions } = useMemo(() => {
+  const { report, trend, allSales, allTransactions, allCateringOrders, cashHolders, restaurantName } = useMemo(() => {
     void storageVersion;
     const sales = storage.getSales();
     const transactions = storage.getTransactions();
+    const cateringOrders = storage.getCateringOrders();
+    const cashHolders = storage.getCashHolders();
+    const restaurantName = storage.getActiveRestaurant()?.name || 'Restaurant';
     const yearSales = sales.filter(s => new Date(s.date).getFullYear() === year);
     const yearTransactions = transactions.filter(t => new Date(t.date).getFullYear() === year);
 
@@ -67,7 +70,15 @@ export default function Dashboard() {
       });
     }
 
-    return { report: yearlyReport, trend: points, allSales: sales, allTransactions: transactions };
+    return {
+      report: yearlyReport,
+      trend: points,
+      allSales: sales,
+      allTransactions: transactions,
+      allCateringOrders: cateringOrders,
+      cashHolders,
+      restaurantName,
+    };
   }, [year, storageVersion]);
 
   const handlePreviousYear = () => {
@@ -110,8 +121,8 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Dashboard</h1>
-          <p className="text-gray-600">Yearly Revenue & Expense Overview</p>
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">{restaurantName} Dashboard</h1>
+          <p className="text-gray-600">Yearly revenue, expense, and cash-holder overview</p>
         </div>
 
         <PersistenceStatusCard />
@@ -292,8 +303,10 @@ export default function Dashboard() {
         </div>
 
         <CashHoldingYearSummary
+          cashHolders={cashHolders}
           sales={allSales}
           transactions={allTransactions}
+          cateringOrders={allCateringOrders}
           year={year}
         />
       </div>

@@ -28,10 +28,13 @@ export default function TransactionsPage() {
     });
   }, []);
 
-  const { transactions, sales, allSales, allTransactions } = useMemo(() => {
+  const { transactions, sales, allSales, allTransactions, allCateringOrders, cashHolders, activeRestaurantId } = useMemo(() => {
     void storageVersion;
     const allTransactions = storage.getTransactions();
     const allSales = storage.getSales();
+    const allCateringOrders = storage.getCateringOrders();
+    const cashHolders = storage.getCashHolders();
+    const activeRestaurantId = storage.getSession()?.activeRestaurantId || '';
     const monthStart = new Date(currentYear, currentMonth, 1);
     const monthEnd = endOfMonth(monthStart);
 
@@ -49,6 +52,9 @@ export default function TransactionsPage() {
       sales: monthlySales,
       allSales,
       allTransactions,
+      allCateringOrders,
+      cashHolders,
+      activeRestaurantId,
     };
   }, [currentMonth, currentYear, storageVersion]);
 
@@ -196,8 +202,10 @@ export default function TransactionsPage() {
         )}
 
         <CashHoldingCards
+          cashHolders={cashHolders}
           sales={allSales}
           transactions={allTransactions}
+          cateringOrders={allCateringOrders}
           month={currentMonth}
           year={currentYear}
         />
@@ -227,6 +235,8 @@ export default function TransactionsPage() {
       {showForm && (
         <TransactionForm
           transaction={editingTransaction}
+          restaurantId={activeRestaurantId}
+          cashHolders={cashHolders.filter(holder => holder.active).map(holder => holder.name)}
           fixedType="expense"
           onSubmit={handleAddTransaction}
           onClose={() => {

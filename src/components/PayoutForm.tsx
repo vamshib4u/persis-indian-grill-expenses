@@ -7,11 +7,12 @@ import { X } from 'lucide-react';
 
 interface PayoutFormProps {
   payout?: Transaction | null;
+  restaurantId: string;
   onSubmit: (payout: Transaction) => Promise<void>;
   onClose: () => void;
 }
 
-export const PayoutForm = ({ payout, onSubmit, onClose }: PayoutFormProps) => {
+export const PayoutForm = ({ payout, restaurantId, onSubmit, onClose }: PayoutFormProps) => {
   const [formData, setFormData] = useState({
     date: payout ? new Date(payout.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
     amount: payout?.amount || 0,
@@ -31,6 +32,7 @@ export const PayoutForm = ({ payout, onSubmit, onClose }: PayoutFormProps) => {
 
     const newPayout: Transaction = {
       id: payout?.id || generateId(),
+      restaurantId: payout?.restaurantId || restaurantId,
       date: dateObj,
       type: 'payout',
       category: 'Payout',

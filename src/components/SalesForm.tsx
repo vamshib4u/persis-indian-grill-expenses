@@ -5,15 +5,15 @@ import { DailySales } from '@/types';
 import { generateId } from '@/lib/utils';
 import { X } from 'lucide-react';
 
-const CASH_HOLDERS = ['Vamshi', 'Raghu', 'Naresh', 'Nikki', 'Meenu', 'Pradeep'];
-
 interface SalesFormProps {
   sale?: DailySales | null;
+  restaurantId: string;
+  cashHolders: string[];
   onSubmit: (sale: DailySales) => Promise<void>;
   onClose: () => void;
 }
 
-export const SalesForm = ({ sale, onSubmit, onClose }: SalesFormProps) => {
+export const SalesForm = ({ sale, restaurantId, cashHolders, onSubmit, onClose }: SalesFormProps) => {
   const [formData, setFormData] = useState({
     date: sale ? new Date(sale.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
     squareSales: sale?.squareSales || 0,
@@ -33,6 +33,7 @@ export const SalesForm = ({ sale, onSubmit, onClose }: SalesFormProps) => {
     
     const newSale: DailySales = {
       id: sale?.id || generateId(),
+      restaurantId: sale?.restaurantId || restaurantId,
       date: dateObj,
       squareSales: parseFloat(formData.squareSales.toString()),
       cashCollected: parseFloat(formData.cashCollected.toString()),
@@ -108,7 +109,7 @@ export const SalesForm = ({ sale, onSubmit, onClose }: SalesFormProps) => {
               required
             >
               <option value="">Select cash holder</option>
-              {CASH_HOLDERS.map(holder => (
+              {cashHolders.map(holder => (
                 <option key={holder} value={holder}>{holder}</option>
               ))}
             </select>

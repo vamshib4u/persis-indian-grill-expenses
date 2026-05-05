@@ -1,5 +1,6 @@
 export interface DailySales {
   id: string;
+  restaurantId: string;
   date: Date | string;
   squareSales: number;
   cashCollected: number;
@@ -15,6 +16,7 @@ export interface CashHolder {
 
 export interface Transaction {
   id: string;
+  restaurantId: string;
   date: Date | string;
   type: 'expense' | 'payout';
   category: string;
@@ -24,6 +26,21 @@ export interface Transaction {
   spentBy?: string;
   payeeName?: string;
   purpose?: string;
+  notes?: string;
+  createdAt: Date | string;
+}
+
+export interface CateringOrder {
+  id: string;
+  restaurantId: string;
+  readyAt: Date | string;
+  fulfillmentType: 'pickup' | 'delivery' | 'banquet_hall';
+  depositAmount: number;
+  depositPaidDate?: Date | string;
+  depositCashHolder?: string;
+  finalPaymentAmount: number;
+  finalPaymentDate?: Date | string;
+  finalPaymentCashHolder?: string;
   notes?: string;
   createdAt: Date | string;
 }
@@ -39,8 +56,42 @@ export interface MonthlyReport {
   unreportedCash: number;
 }
 
+export interface Restaurant {
+  id: string;
+  name: string;
+  slug: string;
+  createdAt: Date | string;
+}
+
+export interface CashHolderConfig {
+  id: string;
+  restaurantId: string;
+  name: string;
+  startingAmount: number;
+  active: boolean;
+  createdAt: Date | string;
+}
+
+export type UserRole = 'restaurant_admin' | 'super_admin';
+
+export interface AppUser {
+  id: string;
+  username: string;
+  role: UserRole;
+  restaurantId?: string;
+  active: boolean;
+  createdAt: Date | string;
+}
+
+export interface SessionData {
+  user: AppUser;
+  activeRestaurantId: string;
+  restaurants: Restaurant[];
+}
+
 export interface DataExport {
   sales: DailySales[];
   transactions: Transaction[];
+  cateringOrders?: CateringOrder[];
   generatedAt: Date;
 }
