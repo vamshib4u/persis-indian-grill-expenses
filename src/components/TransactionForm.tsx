@@ -5,8 +5,6 @@ import { Transaction } from '@/types';
 import { generateId } from '@/lib/utils';
 import { X } from 'lucide-react';
 
-const CASH_HOLDERS = ['Vamshi', 'Raghu', 'Naresh', 'Nikki', 'Meenu', 'Pradeep'];
-
 const EXPENSE_CATEGORIES = [
   'Supplies',
   'Utilities',
@@ -24,12 +22,21 @@ const EXPENSE_CATEGORIES = [
 
 interface TransactionFormProps {
   transaction?: Transaction | null;
+  restaurantId: string;
+  cashHolders: string[];
   onSubmit: (transaction: Transaction) => Promise<void>;
   onClose: () => void;
   fixedType?: 'expense' | 'payout';
 }
 
-export const TransactionForm = ({ transaction, onSubmit, onClose, fixedType }: TransactionFormProps) => {
+export const TransactionForm = ({
+  transaction,
+  restaurantId,
+  cashHolders,
+  onSubmit,
+  onClose,
+  fixedType,
+}: TransactionFormProps) => {
   const [formData, setFormData] = useState({
     date: transaction ? new Date(transaction.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
     type: transaction?.type || fixedType || 'expense',
@@ -53,6 +60,7 @@ export const TransactionForm = ({ transaction, onSubmit, onClose, fixedType }: T
 
     const newTransaction: Transaction = {
       id: transaction?.id || generateId(),
+      restaurantId: transaction?.restaurantId || restaurantId,
       date: dateObj,
       type: (fixedType || formData.type) as 'expense' | 'payout',
       category: formData.category,
@@ -212,7 +220,7 @@ export const TransactionForm = ({ transaction, onSubmit, onClose, fixedType }: T
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
               >
                 <option value="">Select person</option>
-                {CASH_HOLDERS.map(holder => (
+                {cashHolders.map(holder => (
                   <option key={holder} value={holder}>{holder}</option>
                 ))}
               </select>

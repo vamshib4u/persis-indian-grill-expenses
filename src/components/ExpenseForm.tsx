@@ -5,8 +5,6 @@ import { Transaction } from '@/types';
 import { generateId } from '@/lib/utils';
 import { X } from 'lucide-react';
 
-const CASH_HOLDERS = ['Vamshi', 'Raghu', 'Naresh', 'Nikki', 'Meenu', 'Pradeep'];
-
 const categories = [
   'Supplies',
   'Utilities',
@@ -24,11 +22,13 @@ const categories = [
 
 interface ExpenseFormProps {
   expense?: Transaction | null;
+  restaurantId: string;
+  cashHolders: string[];
   onSubmit: (expense: Transaction) => Promise<void>;
   onClose: () => void;
 }
 
-export const ExpenseForm = ({ expense, onSubmit, onClose }: ExpenseFormProps) => {
+export const ExpenseForm = ({ expense, restaurantId, cashHolders, onSubmit, onClose }: ExpenseFormProps) => {
   const [formData, setFormData] = useState({
     date: expense ? new Date(expense.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
     category: expense?.category || '',
@@ -50,6 +50,7 @@ export const ExpenseForm = ({ expense, onSubmit, onClose }: ExpenseFormProps) =>
 
     const newExpense: Transaction = {
       id: expense?.id || generateId(),
+      restaurantId: expense?.restaurantId || restaurantId,
       date: dateObj,
       type: 'expense',
       category: formData.category,
@@ -142,7 +143,7 @@ export const ExpenseForm = ({ expense, onSubmit, onClose }: ExpenseFormProps) =>
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
             >
               <option value="">Select person</option>
-              {CASH_HOLDERS.map(holder => (
+              {cashHolders.map(holder => (
                 <option key={holder} value={holder}>{holder}</option>
               ))}
             </select>

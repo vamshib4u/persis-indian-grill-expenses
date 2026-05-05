@@ -1,26 +1,30 @@
 'use client';
 
 import { useMemo } from 'react';
-import { DailySales, Transaction } from '@/types';
+import { CashHolderConfig, CateringOrder, DailySales, Transaction } from '@/types';
 import { formatCurrency } from '@/lib/utils';
 import { getCashHoldingYearSnapshot } from '@/lib/cashHolding';
 
 interface CashHoldingYearSummaryProps {
+  cashHolders: CashHolderConfig[];
   sales: DailySales[];
   transactions: Transaction[];
+  cateringOrders: CateringOrder[];
   year: number;
   title?: string;
 }
 
 export const CashHoldingYearSummary = ({
+  cashHolders,
   sales,
   transactions,
+  cateringOrders,
   year,
   title = 'Cash Holding Summary (Year)',
 }: CashHoldingYearSummaryProps) => {
   const summary = useMemo(
-    () => getCashHoldingYearSnapshot(sales, transactions, year),
-    [sales, transactions, year]
+    () => getCashHoldingYearSnapshot(cashHolders, sales, transactions, cateringOrders, year),
+    [cashHolders, sales, transactions, cateringOrders, year]
   );
 
   if (!summary.rows.length) return null;

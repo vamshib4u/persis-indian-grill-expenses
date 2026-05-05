@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { canAccessRestaurant, getSessionFromRequest } from '@/lib/auth';
 import { createSale, deleteSale, listSales, updateSale } from '@/lib/db';
 
 export const runtime = 'nodejs';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const sales = await listSales();
+    const session = await getSessionFromRequest(request);
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const sales = await listSales(session.activeRestaurantId);
     return NextResponse.json({ sales });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load sales';
@@ -15,8 +21,17 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSessionFromRequest(request);
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
-    const sale = await createSale(body);
+    const restaurantId =
+      typeof body.restaurantId === 'string' && canAccessRestaurant(session, body.restaurantId)
+        ? body.restaurantId
+        : session.activeRestaurantId;
+    const sale = await createSale({ ...body, restaurantId });
     return NextResponse.json({ success: true, sale }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid request';
@@ -26,12 +41,21 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const session = await getSessionFromRequest(request);
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     if (!body?.id) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
     }
 
-    const sale = await updateSale(body);
+    const restaurantId =
+      typeof body.restaurantId === 'string' && canAccessRestaurant(session, body.restaurantId)
+        ? body.restaurantId
+        : session.activeRestaurantId;
+    const sale = await updateSale({ ...body, restaurantId });
     if (!sale) {
       return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
     }
@@ -52,7 +76,17 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const deleted = await deleteSale(id);
+    const session = await getSessionFromRequest(request);
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const restaurantId =
+      searchParams.get('restaurantId') && canAccessRestaurant(session, searchParams.get('restaurantId')!)
+        ? searchParams.get('restaurantId')!
+        : session.activeRestaurantId;
+
+    const deleted = await deleteSale(id, restaurantId);
     if (!deleted) {
       return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
     }

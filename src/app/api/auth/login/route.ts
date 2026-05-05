@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
+  authenticateUser,
   createSessionToken,
-  getAuthCredentials,
   getSessionCookieName,
   getSessionMaxAge,
 } from '@/lib/auth';
@@ -9,14 +9,17 @@ import {
 export async function POST(request: NextRequest) {
   try {
     const { username, password } = await request.json();
-    const expected = getAuthCredentials();
+    const session = await authenticateUser(username, password);
 
-    if (username !== expected.username || password !== expected.password) {
+    if (!session) {
       return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
     }
 
-    const token = await createSessionToken(username);
-    const response = NextResponse.json({ success: true });
+    const token = await createSessionToken({
+      userId: session.user.id,
+      activeRestaurantId: session.activeRestaurantId,
+    });
+    const response = NextResponse.json({ success: true, session });
 
     response.cookies.set(getSessionCookieName(), token, {
       httpOnly: true,

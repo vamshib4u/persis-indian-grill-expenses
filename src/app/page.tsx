@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { BarChart3, DollarSign, CreditCard, TrendingDown, ArrowRight } from 'lucide-react';
+import { BarChart3, DollarSign, CreditCard, TrendingDown, ArrowRight, Truck } from 'lucide-react';
 
 export default function Home() {
   const features = [
@@ -33,6 +33,13 @@ export default function Home() {
       href: '/payouts',
       color: 'bg-red-50 text-red-600',
     },
+    {
+      icon: Truck,
+      title: 'Catering',
+      description: 'Manage catering ready times, deposits, and final payments',
+      href: '/catering',
+      color: 'bg-amber-50 text-amber-700',
+    },
   ];
 
   return (
@@ -40,20 +47,18 @@ export default function Home() {
       <div className="max-w-6xl mx-auto px-4 py-16">
         {/* Header */}
         <div className="text-center mb-16">
-          <h1 className="text-5xl font-bold text-gray-900 mb-4">
-            Persis Indian Grill
-          </h1>
+          <h1 className="text-5xl font-bold text-gray-900 mb-4">Persis Locations</h1>
           <p className="text-xl text-gray-600 mb-8">
             Monthly Revenue & Expense Management
           </p>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            Streamline your financial tracking with daily sales recording, expense management, 
-            and seamless Google Sheets integration for comprehensive monthly reporting.
+            Track each restaurant separately with location-specific sales, expenses, cash holders,
+            and admin-managed access.
           </p>
         </div>
 
         {/* Features Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6 mb-12">
           {features.map(feature => {
             const Icon = feature.icon;
             return (
@@ -89,9 +94,9 @@ export default function Home() {
               </p>
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900 mb-2">Google Sheets Sync</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Protected Access</h3>
               <p className="text-gray-600 text-sm">
-                Sync your data with Google Sheets for backup and additional analysis.
+                Login protection keeps the application and API routes private.
               </p>
             </div>
             <div>

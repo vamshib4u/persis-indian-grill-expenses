@@ -1,6 +1,4 @@
-import { DailySales, Transaction } from '@/types';
-
-export const CASH_HOLDERS = ['Vamshi', 'Raghu', 'Naresh', 'Nikki', 'Meenu', 'Pradeep'];
+import { CashHolderConfig, CateringOrder, DailySales, Transaction } from '@/types';
 
 export type CashHoldingRow = {
   name: string;
@@ -27,7 +25,6 @@ const toMonthKey = (date: Date) => {
 };
 
 const buildMonthStart = (year: number, month: number) => new Date(year, month, 1);
-
 const addMonths = (date: Date, count: number) => new Date(date.getFullYear(), date.getMonth() + count, 1);
 
 const addToBucket = (map: Map<string, Map<string, number>>, monthKey: string, holder: string, amount: number) => {
@@ -36,89 +33,133 @@ const addToBucket = (map: Map<string, Map<string, number>>, monthKey: string, ho
   map.set(monthKey, byHolder);
 };
 
-const sortHolders = (holders: Set<string>) => {
-  const ordered: string[] = [];
-  CASH_HOLDERS.forEach(h => {
-    if (holders.has(h)) ordered.push(h);
+const buildOrderedHolders = (
+  cashHolders: CashHolderConfig[],
+  sales: DailySales[],
+  transactions: Transaction[],
+  cateringOrders: CateringOrder[]
+) => {
+  const orderedFromAdmin = cashHolders.filter((holder) => holder.active).map((holder) => holder.name);
+  const holderSet = new Set<string>(orderedFromAdmin);
+
+  sales.forEach((sale) => holderSet.add(normalizeHolder(sale.cashHolder)));
+  transactions.forEach((transaction) => {
+    if (transaction.type === 'expense' && transaction.paymentMethod === 'cash') {
+      holderSet.add(normalizeHolder(transaction.spentBy));
+    }
   });
-  const remaining = Array.from(holders).filter(h => !ordered.includes(h)).sort((a, b) => a.localeCompare(b));
-  return [...ordered, ...remaining];
+  cateringOrders.forEach((order) => {
+    if (order.depositAmount > 0) holderSet.add(normalizeHolder(order.depositCashHolder));
+    if (order.finalPaymentAmount > 0) holderSet.add(normalizeHolder(order.finalPaymentCashHolder));
+  });
+
+  const remaining = Array.from(holderSet)
+    .filter((holder) => !orderedFromAdmin.includes(holder))
+    .sort((a, b) => a.localeCompare(b));
+
+  return [...orderedFromAdmin, ...remaining];
+};
+
+const buildStartingAmounts = (cashHolders: CashHolderConfig[]) => {
+  const map = new Map<string, number>();
+  cashHolders.forEach((holder) => {
+    map.set(holder.name, holder.startingAmount);
+  });
+  return map;
 };
 
 export const getCashHoldingSummary = (
+  cashHolders: CashHolderConfig[],
   sales: DailySales[],
   transactions: Transaction[],
+  cateringOrders: CateringOrder[],
   month: number,
   year: number
 ): CashHoldingSummary => {
-  const holders = new Set<string>(CASH_HOLDERS);
-  sales.forEach(s => holders.add(normalizeHolder(s.cashHolder)));
-  transactions.forEach(t => {
-    if (t.type === 'expense' && t.paymentMethod === 'cash') {
-      holders.add(normalizeHolder(t.spentBy));
+  const orderedHolders = buildOrderedHolders(cashHolders, sales, transactions, cateringOrders);
+  const configuredStartingAmounts = buildStartingAmounts(cashHolders);
+  const salesByMonth = new Map<string, Map<string, number>>();
+  const expensesByMonth = new Map<string, Map<string, number>>();
+  const cateringByMonth = new Map<string, Map<string, number>>();
+
+  sales.forEach((sale) => {
+    addToBucket(salesByMonth, toMonthKey(new Date(sale.date)), normalizeHolder(sale.cashHolder), sale.cashCollected || 0);
+  });
+
+  transactions.forEach((transaction) => {
+    if (transaction.type !== 'expense' || transaction.paymentMethod !== 'cash') return;
+    addToBucket(
+      expensesByMonth,
+      toMonthKey(new Date(transaction.date)),
+      normalizeHolder(transaction.spentBy),
+      transaction.amount || 0
+    );
+  });
+
+  cateringOrders.forEach((order) => {
+    if (order.depositAmount > 0 && order.depositCashHolder) {
+      addToBucket(
+        cateringByMonth,
+        toMonthKey(new Date(order.depositPaidDate || order.readyAt)),
+        normalizeHolder(order.depositCashHolder),
+        order.depositAmount || 0
+      );
+    }
+    if (order.finalPaymentAmount > 0 && order.finalPaymentCashHolder) {
+      addToBucket(
+        cateringByMonth,
+        toMonthKey(new Date(order.finalPaymentDate || order.readyAt)),
+        normalizeHolder(order.finalPaymentCashHolder),
+        order.finalPaymentAmount || 0
+      );
     }
   });
 
-  const salesByMonth = new Map<string, Map<string, number>>();
-  const expensesByMonth = new Map<string, Map<string, number>>();
-
-  sales.forEach(s => {
-    const monthKey = toMonthKey(new Date(s.date));
-    const holder = normalizeHolder(s.cashHolder);
-    addToBucket(salesByMonth, monthKey, holder, s.cashCollected || 0);
-  });
-
-  transactions.forEach(t => {
-    if (t.type !== 'expense' || t.paymentMethod !== 'cash') return;
-    const monthKey = toMonthKey(new Date(t.date));
-    const holder = normalizeHolder(t.spentBy);
-    addToBucket(expensesByMonth, monthKey, holder, t.amount || 0);
-  });
-
   const allDates = [
-    ...sales.map(s => new Date(s.date)),
-    ...transactions.map(t => new Date(t.date)),
-  ].filter(d => !Number.isNaN(d.getTime()));
+    ...sales.map((sale) => new Date(sale.date)),
+    ...transactions.map((transaction) => new Date(transaction.date)),
+    ...cateringOrders.map((order) => new Date(order.readyAt)),
+    ...cateringOrders
+      .flatMap((order) => [order.depositPaidDate, order.finalPaymentDate])
+      .filter(Boolean)
+      .map((value) => new Date(value as Date | string)),
+  ].filter((date) => !Number.isNaN(date.getTime()));
 
   const targetMonthStart = buildMonthStart(year, month);
   if (!allDates.length) {
-    const emptyRows = sortHolders(holders).map(name => ({
-      name,
-      opening: 0,
-      collected: 0,
-      expenses: 0,
-      closing: 0,
-    }));
-    return {
-      rows: emptyRows,
-      totals: {
-        name: 'Total',
-        opening: 0,
-        collected: 0,
-        expenses: 0,
-        closing: 0,
+    const rows = orderedHolders.map((name) => {
+      const opening = configuredStartingAmounts.get(name) || 0;
+      return { name, opening, collected: 0, expenses: 0, closing: opening };
+    });
+    const totals = rows.reduce(
+      (acc, row) => {
+        acc.opening += row.opening;
+        acc.collected += row.collected;
+        acc.expenses += row.expenses;
+        acc.closing += row.closing;
+        return acc;
       },
-    };
+      { name: 'Total', opening: 0, collected: 0, expenses: 0, closing: 0 }
+    );
+    return { rows, totals };
   }
 
-  const minDate = allDates.reduce((min, d) => (d < min ? d : min), allDates[0]);
+  const minDate = allDates.reduce((min, date) => (date < min ? date : min), allDates[0]);
   const startMonth = buildMonthStart(minDate.getFullYear(), minDate.getMonth());
-
-  const orderedHolders = sortHolders(holders);
   const running = new Map<string, number>();
-  orderedHolders.forEach(h => running.set(h, 0));
+  orderedHolders.forEach((holder) => running.set(holder, configuredStartingAmounts.get(holder) || 0));
 
   let current = startMonth;
   let targetRows: CashHoldingRow[] = [];
-
   while (current <= targetMonthStart) {
     const monthKey = toMonthKey(current);
     const salesForMonth = salesByMonth.get(monthKey) || new Map<string, number>();
     const expensesForMonth = expensesByMonth.get(monthKey) || new Map<string, number>();
+    const cateringForMonth = cateringByMonth.get(monthKey) || new Map<string, number>();
 
-    const rows = orderedHolders.map(name => {
+    const rows = orderedHolders.map((name) => {
       const opening = running.get(name) || 0;
-      const collected = salesForMonth.get(name) || 0;
+      const collected = (salesForMonth.get(name) || 0) + (cateringForMonth.get(name) || 0);
       const expenses = expensesForMonth.get(name) || 0;
       const closing = opening + collected - expenses;
       running.set(name, closing);
@@ -148,118 +189,56 @@ export const getCashHoldingSummary = (
 };
 
 export const getCashHoldingYearSnapshot = (
+  cashHolders: CashHolderConfig[],
   sales: DailySales[],
   transactions: Transaction[],
+  cateringOrders: CateringOrder[],
   year: number
 ): CashHoldingSummary => {
-  const holders = new Set<string>(CASH_HOLDERS);
-  sales.forEach(s => holders.add(normalizeHolder(s.cashHolder)));
-  transactions.forEach(t => {
-    if (t.type === 'expense' && t.paymentMethod === 'cash') {
-      holders.add(normalizeHolder(t.spentBy));
-    }
+  const orderedHolders = buildOrderedHolders(cashHolders, sales, transactions, cateringOrders);
+  const configuredStartingAmounts = buildStartingAmounts(cashHolders);
+  const summary = getCashHoldingSummary(cashHolders, sales, transactions, cateringOrders, 11, year);
+
+  const salesByYear = new Map<string, number>();
+  const expensesByYear = new Map<string, number>();
+  const cateringByYear = new Map<string, number>();
+
+  sales.forEach((sale) => {
+    if (new Date(sale.date).getFullYear() !== year) return;
+    const holder = normalizeHolder(sale.cashHolder);
+    salesByYear.set(holder, (salesByYear.get(holder) || 0) + (sale.cashCollected || 0));
   });
 
-  const salesByMonth = new Map<string, Map<string, number>>();
-  const expensesByMonth = new Map<string, Map<string, number>>();
-
-  sales.forEach(s => {
-    const monthKey = toMonthKey(new Date(s.date));
-    const holder = normalizeHolder(s.cashHolder);
-    addToBucket(salesByMonth, monthKey, holder, s.cashCollected || 0);
+  transactions.forEach((transaction) => {
+    if (transaction.type !== 'expense' || transaction.paymentMethod !== 'cash') return;
+    if (new Date(transaction.date).getFullYear() !== year) return;
+    const holder = normalizeHolder(transaction.spentBy);
+    expensesByYear.set(holder, (expensesByYear.get(holder) || 0) + (transaction.amount || 0));
   });
 
-  transactions.forEach(t => {
-    if (t.type !== 'expense' || t.paymentMethod !== 'cash') return;
-    const monthKey = toMonthKey(new Date(t.date));
-    const holder = normalizeHolder(t.spentBy);
-    addToBucket(expensesByMonth, monthKey, holder, t.amount || 0);
-  });
-
-  const allDates = [
-    ...sales.map(s => new Date(s.date)),
-    ...transactions.map(t => new Date(t.date)),
-  ].filter(d => !Number.isNaN(d.getTime()));
-
-  const orderedHolders = sortHolders(holders);
-  const emptyRows = orderedHolders.map(name => ({
-    name,
-    opening: 0,
-    collected: 0,
-    expenses: 0,
-    closing: 0,
-  }));
-
-  if (!allDates.length) {
-    return {
-      rows: emptyRows,
-      totals: {
-        name: 'Total',
-        opening: 0,
-        collected: 0,
-        expenses: 0,
-        closing: 0,
-      },
-    };
-  }
-
-  const minDate = allDates.reduce((min, d) => (d < min ? d : min), allDates[0]);
-  const targetStart = buildMonthStart(year, 0);
-  const targetEnd = buildMonthStart(year, 11);
-  const startMonth = minDate < targetStart ? buildMonthStart(minDate.getFullYear(), minDate.getMonth()) : targetStart;
-
-  const running = new Map<string, number>();
-  orderedHolders.forEach(h => running.set(h, 0));
-
-  const openingMap = new Map<string, number>();
-  const closingMap = new Map<string, number>();
-  const collectedTotals = new Map<string, number>();
-  const expenseTotals = new Map<string, number>();
-  orderedHolders.forEach(h => {
-    collectedTotals.set(h, 0);
-    expenseTotals.set(h, 0);
-  });
-
-  let current = startMonth;
-  while (current <= targetEnd) {
-    const monthKey = toMonthKey(current);
-    const salesForMonth = salesByMonth.get(monthKey) || new Map<string, number>();
-    const expensesForMonth = expensesByMonth.get(monthKey) || new Map<string, number>();
-
-    if (current.getTime() === targetStart.getTime()) {
-      orderedHolders.forEach(name => {
-        openingMap.set(name, running.get(name) || 0);
-      });
-    }
-
-    orderedHolders.forEach(name => {
-      const opening = running.get(name) || 0;
-      const collected = salesForMonth.get(name) || 0;
-      const expenses = expensesForMonth.get(name) || 0;
-      const closing = opening + collected - expenses;
-      running.set(name, closing);
-      if (current.getFullYear() === year) {
-        collectedTotals.set(name, (collectedTotals.get(name) || 0) + collected);
-        expenseTotals.set(name, (expenseTotals.get(name) || 0) + expenses);
+  cateringOrders.forEach((order) => {
+    if (order.depositAmount > 0 && order.depositCashHolder) {
+      const paidYear = new Date(order.depositPaidDate || order.readyAt).getFullYear();
+      if (paidYear === year) {
+        const holder = normalizeHolder(order.depositCashHolder);
+        cateringByYear.set(holder, (cateringByYear.get(holder) || 0) + (order.depositAmount || 0));
       }
-    });
-
-    if (current.getTime() === targetEnd.getTime()) {
-      orderedHolders.forEach(name => {
-        closingMap.set(name, running.get(name) || 0);
-      });
-      break;
     }
+    if (order.finalPaymentAmount > 0 && order.finalPaymentCashHolder) {
+      const paidYear = new Date(order.finalPaymentDate || order.readyAt).getFullYear();
+      if (paidYear === year) {
+        const holder = normalizeHolder(order.finalPaymentCashHolder);
+        cateringByYear.set(holder, (cateringByYear.get(holder) || 0) + (order.finalPaymentAmount || 0));
+      }
+    }
+  });
 
-    current = addMonths(current, 1);
-  }
-
-  const rows = orderedHolders.map(name => ({
+  const rows = orderedHolders.map((name) => ({
     name,
-    opening: openingMap.get(name) || 0,
-    collected: collectedTotals.get(name) || 0,
-    expenses: expenseTotals.get(name) || 0,
-    closing: closingMap.get(name) || 0,
+    opening: configuredStartingAmounts.get(name) || 0,
+    collected: (salesByYear.get(name) || 0) + (cateringByYear.get(name) || 0),
+    expenses: expensesByYear.get(name) || 0,
+    closing: summary.rows.find((row) => row.name === name)?.closing ?? (configuredStartingAmounts.get(name) || 0),
   }));
 
   const totals = rows.reduce(

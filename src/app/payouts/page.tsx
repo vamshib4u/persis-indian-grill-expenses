@@ -27,10 +27,13 @@ export default function PayoutsPage() {
     });
   }, []);
 
-  const { payouts, allSales, allTransactions } = useMemo(() => {
+  const { payouts, allSales, allTransactions, allCateringOrders, cashHolders, activeRestaurantId } = useMemo(() => {
     void storageVersion;
     const allTransactions = storage.getTransactions();
     const allSales = storage.getSales();
+    const allCateringOrders = storage.getCateringOrders();
+    const cashHolders = storage.getCashHolders();
+    const activeRestaurantId = storage.getSession()?.activeRestaurantId || '';
     const monthStart = new Date(currentYear, currentMonth, 1);
     const monthEnd = endOfMonth(monthStart);
 
@@ -42,6 +45,9 @@ export default function PayoutsPage() {
       payouts: monthlyPayouts.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
       allSales,
       allTransactions,
+      allCateringOrders,
+      cashHolders,
+      activeRestaurantId,
     };
   }, [currentMonth, currentYear, storageVersion]);
 
@@ -167,8 +173,10 @@ export default function PayoutsPage() {
         )}
 
         <CashHoldingSummary
+          cashHolders={cashHolders}
           sales={allSales}
           transactions={allTransactions}
+          cateringOrders={allCateringOrders}
           month={currentMonth}
           year={currentYear}
         />
@@ -198,6 +206,7 @@ export default function PayoutsPage() {
       {showForm && (
         <PayoutForm
           payout={editingPayout}
+          restaurantId={activeRestaurantId}
           onSubmit={handleAddPayout}
           onClose={() => {
             setShowForm(false);
