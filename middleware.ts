@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionFromRequest } from '@/lib/auth';
+import { getTokenPayloadFromRequest } from '@/lib/authToken';
 
 const PUBLIC_PATHS = ['/login', '/api/auth/login'];
 
@@ -14,7 +14,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const session = await getSessionFromRequest(request);
+  const session = await getTokenPayloadFromRequest(request);
 
   if (PUBLIC_PATHS.includes(pathname)) {
     if (session && pathname === '/login') {
@@ -32,7 +32,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) {
-    if (session.user.role !== 'super_admin') {
+    if (session.role !== 'super_admin') {
       if (pathname.startsWith('/api/')) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
