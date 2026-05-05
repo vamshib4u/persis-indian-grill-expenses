@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth';
-import { listCashHolders, listRestaurants, listUsers } from '@/lib/db';
+import { listCashHoldersForAdmin, listRestaurants, listUsers } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   const session = await getSessionFromRequest(request);
@@ -13,16 +13,12 @@ export async function GET(request: NextRequest) {
 
   const restaurants = await listRestaurants();
   const users = await listUsers();
-  const cashHoldersByRestaurant = Object.fromEntries(
-    await Promise.all(
-      restaurants.map(async (restaurant) => [restaurant.id, await listCashHolders(restaurant.id)] as const)
-    )
-  );
+  const cashHolders = await listCashHoldersForAdmin();
 
   return NextResponse.json({
     session,
     restaurants,
     users,
-    cashHoldersByRestaurant,
+    cashHolders,
   });
 }

@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
       username: body.username,
       password: body.password,
       role: body.role,
-      restaurantId: body.restaurantId,
+      restaurantIds: Array.isArray(body.restaurantIds) ? body.restaurantIds : [],
       active: body.active,
     });
     return NextResponse.json({ user }, { status: 201 });
@@ -44,7 +44,7 @@ export async function PUT(request: NextRequest) {
       username: body.username,
       password: body.password,
       role: body.role,
-      restaurantId: body.restaurantId,
+      restaurantIds: Array.isArray(body.restaurantIds) ? body.restaurantIds : [],
       active: body.active,
     });
     if (!user) {

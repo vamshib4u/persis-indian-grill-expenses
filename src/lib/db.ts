@@ -3,6 +3,7 @@ import { neon } from '@neondatabase/serverless';
 import { z } from 'zod';
 import {
   AppUser,
+  CashHolderAdminConfig,
   CashHolderConfig,
   CateringOrder,
   DailySales,
@@ -76,11 +77,15 @@ const restaurantSchema = z.object({
 
 const cashHolderSchema = z.object({
   id: z.string().min(1),
-  restaurantId: z.string().min(1),
   name: z.string().min(1),
   startingAmount: z.coerce.number().finite(),
   active: z.coerce.boolean(),
   createdAt: z.coerce.date(),
+});
+
+const cashHolderAdminSchema = cashHolderSchema.extend({
+  visibleRestaurantIds: z.array(z.string().min(1)),
+  startingAmountsByRestaurant: z.record(z.string(), z.coerce.number().finite()),
 });
 
 const userSchema = z.object({
@@ -88,7 +93,7 @@ const userSchema = z.object({
   username: z.string().min(1),
   passwordHash: z.string().min(1),
   role: z.enum(['restaurant_admin', 'super_admin']),
-  restaurantId: z.string().optional().nullable(),
+  restaurantIds: z.array(z.string().min(1)).default([]),
   active: z.coerce.boolean(),
   createdAt: z.coerce.date(),
 });
@@ -98,6 +103,7 @@ type TransactionInput = z.input<typeof transactionSchema>;
 type CateringOrderInput = z.input<typeof cateringOrderSchema>;
 type RestaurantInput = z.input<typeof restaurantSchema>;
 type CashHolderInput = z.input<typeof cashHolderSchema>;
+type CashHolderAdminInput = z.input<typeof cashHolderAdminSchema>;
 type UserInput = z.input<typeof userSchema>;
 
 declare global {
@@ -198,11 +204,26 @@ const mapCashHolder = (cashHolder: CashHolderInput): CashHolderConfig => {
   });
   return {
     id: parsed.id,
-    restaurantId: parsed.restaurantId,
     name: parsed.name,
     startingAmount: parsed.startingAmount,
     active: parsed.active,
     createdAt: parsed.createdAt.toISOString(),
+  };
+};
+
+const mapCashHolderAdmin = (cashHolder: CashHolderAdminInput): CashHolderAdminConfig => {
+  const parsed = cashHolderAdminSchema.parse({
+    ...cashHolder,
+    active: toBoolean(cashHolder.active),
+  });
+  return {
+    id: parsed.id,
+    name: parsed.name,
+    startingAmount: parsed.startingAmount,
+    active: parsed.active,
+    createdAt: parsed.createdAt.toISOString(),
+    visibleRestaurantIds: parsed.visibleRestaurantIds,
+    startingAmountsByRestaurant: parsed.startingAmountsByRestaurant,
   };
 };
 
@@ -216,7 +237,7 @@ const mapUser = (user: UserInput): AppUser & { passwordHash: string } => {
     username: parsed.username,
     passwordHash: parsed.passwordHash,
     role: parsed.role,
-    restaurantId: parsed.restaurantId ?? undefined,
+    restaurantIds: parsed.restaurantIds,
     active: parsed.active,
     createdAt: parsed.createdAt.toISOString(),
   };
@@ -257,6 +278,33 @@ export async function ensureSchema() {
           active BOOLEAN NOT NULL DEFAULT TRUE,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           UNIQUE (restaurant_id, name)
+        )
+      `;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS user_restaurants (
+          user_id TEXT NOT NULL,
+          restaurant_id TEXT NOT NULL,
+          PRIMARY KEY (user_id, restaurant_id)
+        )
+      `;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS cash_holder_profiles (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL UNIQUE,
+          active BOOLEAN NOT NULL DEFAULT TRUE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS cash_holder_restaurants (
+          cash_holder_id TEXT NOT NULL,
+          restaurant_id TEXT NOT NULL,
+          starting_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+          visible BOOLEAN NOT NULL DEFAULT TRUE,
+          PRIMARY KEY (cash_holder_id, restaurant_id)
         )
       `;
 
@@ -335,6 +383,14 @@ export async function ensureSchema() {
         WHERE restaurant_id IS NULL OR restaurant_id = ''
       `;
 
+      await sql`
+        INSERT INTO user_restaurants (user_id, restaurant_id)
+        SELECT id, restaurant_id
+        FROM users
+        WHERE restaurant_id IS NOT NULL AND restaurant_id <> ''
+        ON CONFLICT (user_id, restaurant_id) DO NOTHING
+      `;
+
       await sql`ALTER TABLE sales ALTER COLUMN restaurant_id SET NOT NULL`;
       await sql`ALTER TABLE transactions ALTER COLUMN restaurant_id SET NOT NULL`;
       await sql`ALTER TABLE catering_orders ALTER COLUMN restaurant_id SET NOT NULL`;
@@ -361,6 +417,12 @@ export async function ensureSchema() {
       `;
 
       await sql`
+        INSERT INTO user_restaurants (user_id, restaurant_id)
+        VALUES ('user-restaurant-admin', ${DEFAULT_PRIMARY_RESTAURANT.id})
+        ON CONFLICT (user_id, restaurant_id) DO NOTHING
+      `;
+
+      await sql`
         INSERT INTO users (id, username, password_hash, role, restaurant_id, active)
         VALUES (
           'user-super-admin',
@@ -378,17 +440,53 @@ export async function ensureSchema() {
             active = TRUE
       `;
 
+      await sql`
+        INSERT INTO cash_holder_profiles (id, name, active, created_at)
+        SELECT
+          MIN(id) AS id,
+          name,
+          BOOL_OR(active) AS active,
+          MIN(created_at) AS created_at
+        FROM cash_holders
+        GROUP BY name
+        ON CONFLICT (name) DO UPDATE
+        SET active = EXCLUDED.active
+      `;
+
+      await sql`
+        INSERT INTO cash_holder_restaurants (cash_holder_id, restaurant_id, starting_amount, visible)
+        SELECT
+          profiles.id,
+          holders.restaurant_id,
+          holders.starting_amount,
+          holders.active
+        FROM cash_holders AS holders
+        JOIN cash_holder_profiles AS profiles
+          ON profiles.name = holders.name
+        ON CONFLICT (cash_holder_id, restaurant_id) DO UPDATE
+        SET starting_amount = EXCLUDED.starting_amount,
+            visible = EXCLUDED.visible
+      `;
+
       for (const holder of DEFAULT_PRIMARY_CASH_HOLDERS) {
         await sql`
-          INSERT INTO cash_holders (id, restaurant_id, name, starting_amount, active)
+          INSERT INTO cash_holder_profiles (id, name, active)
+          VALUES (
+            ${`cash-holder-${holder.toLowerCase()}`},
+            ${holder},
+            TRUE
+          )
+          ON CONFLICT (name) DO NOTHING
+        `;
+        await sql`
+          INSERT INTO cash_holder_restaurants (cash_holder_id, restaurant_id, starting_amount, visible)
           VALUES (
             ${`cash-holder-${holder.toLowerCase()}`},
             ${DEFAULT_PRIMARY_RESTAURANT.id},
-            ${holder},
             0,
             TRUE
           )
-          ON CONFLICT (restaurant_id, name) DO NOTHING
+          ON CONFLICT (cash_holder_id, restaurant_id) DO NOTHING
         `;
       }
 
@@ -399,7 +497,14 @@ export async function ensureSchema() {
       `;
       await sql`CREATE INDEX IF NOT EXISTS transactions_type_idx ON transactions (restaurant_id, type)`;
       await sql`CREATE INDEX IF NOT EXISTS catering_ready_at_idx ON catering_orders (restaurant_id, ready_at DESC)`;
-      await sql`CREATE INDEX IF NOT EXISTS cash_holders_restaurant_idx ON cash_holders (restaurant_id, active, name)`;
+      await sql`
+        CREATE INDEX IF NOT EXISTS user_restaurants_user_idx
+        ON user_restaurants (user_id, restaurant_id)
+      `;
+      await sql`
+        CREATE INDEX IF NOT EXISTS cash_holder_restaurants_restaurant_idx
+        ON cash_holder_restaurants (restaurant_id, visible)
+      `;
     })();
   }
 
@@ -422,67 +527,128 @@ export async function listCashHolders(restaurantId: string): Promise<CashHolderC
   const sql = getSql();
   const rows = (await sql`
     SELECT
-      id,
-      restaurant_id AS "restaurantId",
-      name,
-      starting_amount::float8 AS "startingAmount",
-      active,
-      created_at AS "createdAt"
-    FROM cash_holders
-    WHERE restaurant_id = ${restaurantId}
-    ORDER BY active DESC, name ASC
+      profiles.id,
+      profiles.name,
+      assignments.starting_amount::float8 AS "startingAmount",
+      profiles.active,
+      profiles.created_at AS "createdAt"
+    FROM cash_holder_profiles AS profiles
+    JOIN cash_holder_restaurants AS assignments
+      ON assignments.cash_holder_id = profiles.id
+    WHERE assignments.restaurant_id = ${restaurantId}
+      AND assignments.visible = TRUE
+    ORDER BY profiles.active DESC, profiles.name ASC
   `) as CashHolderInput[];
   return rows.map(mapCashHolder);
 }
 
+export async function listCashHoldersForAdmin(): Promise<CashHolderAdminConfig[]> {
+  await ensureSchema();
+  const sql = getSql();
+  const rows = (await sql`
+    SELECT
+      profiles.id,
+      profiles.name,
+      profiles.active,
+      profiles.created_at AS "createdAt",
+      COALESCE(
+        ARRAY(
+          SELECT restaurant_id
+          FROM cash_holder_restaurants
+          WHERE cash_holder_id = profiles.id
+          ORDER BY restaurant_id
+        ),
+        ARRAY[]::TEXT[]
+      ) AS "visibleRestaurantIds",
+      COALESCE(
+        json_object_agg(assignments.restaurant_id, assignments.starting_amount::float8)
+          FILTER (WHERE assignments.restaurant_id IS NOT NULL),
+        '{}'::json
+      ) AS "startingAmountsByRestaurant",
+      COALESCE(MIN(assignments.starting_amount::float8), 0) AS "startingAmount"
+    FROM cash_holder_profiles AS profiles
+    LEFT JOIN cash_holder_restaurants AS assignments
+      ON assignments.cash_holder_id = profiles.id
+    GROUP BY profiles.id, profiles.name, profiles.active, profiles.created_at
+    ORDER BY profiles.active DESC, profiles.name ASC
+  `) as CashHolderAdminInput[];
+  return rows.map(mapCashHolderAdmin);
+}
+
 export async function createCashHolder(input: {
   id: string;
-  restaurantId: string;
   name: string;
+  restaurantIds: string[];
+  startingAmountsByRestaurant: Record<string, number>;
   startingAmount: number;
   active?: boolean;
 }) {
   await ensureSchema();
   const sql = getSql();
-  const [row] = (await sql`
-    INSERT INTO cash_holders (id, restaurant_id, name, starting_amount, active)
-    VALUES (${input.id}, ${input.restaurantId}, ${input.name}, ${input.startingAmount}, ${input.active ?? true})
-    RETURNING
-      id,
-      restaurant_id AS "restaurantId",
-      name,
-      starting_amount::float8 AS "startingAmount",
-      active,
-      created_at AS "createdAt"
-  `) as CashHolderInput[];
-  return mapCashHolder(row);
+  await sql`
+    INSERT INTO cash_holder_profiles (id, name, active)
+    VALUES (${input.id}, ${input.name}, ${input.active ?? true})
+  `;
+
+  for (const restaurantId of input.restaurantIds) {
+    await sql`
+      INSERT INTO cash_holder_restaurants (cash_holder_id, restaurant_id, starting_amount, visible)
+      VALUES (
+        ${input.id},
+        ${restaurantId},
+        ${input.startingAmountsByRestaurant[restaurantId] ?? input.startingAmount ?? 0},
+        TRUE
+      )
+      ON CONFLICT (cash_holder_id, restaurant_id) DO UPDATE
+      SET starting_amount = EXCLUDED.starting_amount,
+          visible = TRUE
+    `;
+  }
+
+  const holders = await listCashHoldersForAdmin();
+  return holders.find((holder) => holder.id === input.id) ?? null;
 }
 
 export async function updateCashHolder(input: {
   id: string;
-  restaurantId: string;
   name: string;
-  startingAmount: number;
+  restaurantIds: string[];
+  startingAmountsByRestaurant: Record<string, number>;
   active: boolean;
 }) {
   await ensureSchema();
   const sql = getSql();
-  const rows = (await sql`
-    UPDATE cash_holders
+  await sql`
+    UPDATE cash_holder_profiles
     SET
       name = ${input.name},
-      starting_amount = ${input.startingAmount},
       active = ${input.active}
-    WHERE id = ${input.id} AND restaurant_id = ${input.restaurantId}
-    RETURNING
-      id,
-      restaurant_id AS "restaurantId",
-      name,
-      starting_amount::float8 AS "startingAmount",
-      active,
-      created_at AS "createdAt"
-  `) as CashHolderInput[];
-  return rows[0] ? mapCashHolder(rows[0]) : null;
+    WHERE id = ${input.id}
+  `;
+
+  await sql`
+    DELETE FROM cash_holder_restaurants
+    WHERE cash_holder_id = ${input.id}
+      AND restaurant_id <> ALL(${input.restaurantIds})
+  `;
+
+  for (const restaurantId of input.restaurantIds) {
+    await sql`
+      INSERT INTO cash_holder_restaurants (cash_holder_id, restaurant_id, starting_amount, visible)
+      VALUES (
+        ${input.id},
+        ${restaurantId},
+        ${input.startingAmountsByRestaurant[restaurantId] ?? 0},
+        TRUE
+      )
+      ON CONFLICT (cash_holder_id, restaurant_id) DO UPDATE
+      SET starting_amount = EXCLUDED.starting_amount,
+          visible = TRUE
+    `;
+  }
+
+  const holders = await listCashHoldersForAdmin();
+  return holders.find((holder) => holder.id === input.id) ?? null;
 }
 
 export async function getUserById(id: string) {
@@ -494,7 +660,15 @@ export async function getUserById(id: string) {
       username,
       password_hash AS "passwordHash",
       role,
-      restaurant_id AS "restaurantId",
+      COALESCE(
+        ARRAY(
+          SELECT restaurant_id
+          FROM user_restaurants
+          WHERE user_id = users.id
+          ORDER BY restaurant_id
+        ),
+        ARRAY[]::TEXT[]
+      ) AS "restaurantIds",
       active,
       created_at AS "createdAt"
     FROM users
@@ -513,7 +687,15 @@ export async function getUserByUsername(username: string) {
       username,
       password_hash AS "passwordHash",
       role,
-      restaurant_id AS "restaurantId",
+      COALESCE(
+        ARRAY(
+          SELECT restaurant_id
+          FROM user_restaurants
+          WHERE user_id = users.id
+          ORDER BY restaurant_id
+        ),
+        ARRAY[]::TEXT[]
+      ) AS "restaurantIds",
       active,
       created_at AS "createdAt"
     FROM users
@@ -532,7 +714,15 @@ export async function listUsers(): Promise<AppUser[]> {
       username,
       password_hash AS "passwordHash",
       role,
-      restaurant_id AS "restaurantId",
+      COALESCE(
+        ARRAY(
+          SELECT restaurant_id
+          FROM user_restaurants
+          WHERE user_id = users.id
+          ORDER BY restaurant_id
+        ),
+        ARRAY[]::TEXT[]
+      ) AS "restaurantIds",
       active,
       created_at AS "createdAt"
     FROM users
@@ -546,7 +736,7 @@ export async function createUser(input: {
   username: string;
   password: string;
   role: UserRole;
-  restaurantId?: string;
+  restaurantIds?: string[];
   active?: boolean;
 }) {
   await ensureSchema();
@@ -558,7 +748,7 @@ export async function createUser(input: {
       ${input.username},
       ${hashPassword(input.password)},
       ${input.role},
-      ${input.role === 'super_admin' ? null : input.restaurantId ?? null},
+      ${input.role === 'super_admin' ? null : input.restaurantIds?.[0] ?? null},
       ${input.active ?? true}
     )
     RETURNING
@@ -566,11 +756,24 @@ export async function createUser(input: {
       username,
       password_hash AS "passwordHash",
       role,
-      restaurant_id AS "restaurantId",
+      ARRAY[]::TEXT[] AS "restaurantIds",
       active,
       created_at AS "createdAt"
   `) as UserInput[];
-  const { passwordHash: _passwordHash, ...user } = mapUser(row);
+  if (input.role !== 'super_admin') {
+    for (const restaurantId of input.restaurantIds ?? []) {
+      await sql`
+        INSERT INTO user_restaurants (user_id, restaurant_id)
+        VALUES (${input.id}, ${restaurantId})
+        ON CONFLICT (user_id, restaurant_id) DO NOTHING
+      `;
+    }
+  }
+  const created = await getUserById(input.id);
+  if (!created) {
+    throw new Error('Failed to load created user');
+  }
+  const { passwordHash: _passwordHash, ...user } = created;
   return user;
 }
 
@@ -579,7 +782,7 @@ export async function updateUser(input: {
   username: string;
   password?: string;
   role: UserRole;
-  restaurantId?: string;
+  restaurantIds?: string[];
   active: boolean;
 }) {
   await ensureSchema();
@@ -594,7 +797,7 @@ export async function updateUser(input: {
       username = ${input.username},
       password_hash = ${passwordHash},
       role = ${input.role},
-      restaurant_id = ${input.role === 'super_admin' ? null : input.restaurantId ?? null},
+      restaurant_id = ${input.role === 'super_admin' ? null : input.restaurantIds?.[0] ?? null},
       active = ${input.active}
     WHERE id = ${input.id}
     RETURNING
@@ -602,13 +805,25 @@ export async function updateUser(input: {
       username,
       password_hash AS "passwordHash",
       role,
-      restaurant_id AS "restaurantId",
+      ARRAY[]::TEXT[] AS "restaurantIds",
       active,
       created_at AS "createdAt"
   `) as UserInput[];
 
   if (!rows[0]) return null;
-  const { passwordHash: _passwordHash, ...user } = mapUser(rows[0]);
+  await sql`DELETE FROM user_restaurants WHERE user_id = ${input.id}`;
+  if (input.role !== 'super_admin') {
+    for (const restaurantId of input.restaurantIds ?? []) {
+      await sql`
+        INSERT INTO user_restaurants (user_id, restaurant_id)
+        VALUES (${input.id}, ${restaurantId})
+      `;
+    }
+  }
+
+  const updated = await getUserById(input.id);
+  if (!updated) return null;
+  const { passwordHash: _passwordHash, ...user } = updated;
   return user;
 }
 
