@@ -122,6 +122,72 @@ const hashPassword = (password: string) => createHash('sha256').update(password)
 const toDateOnly = (value: Date) => value.toISOString().slice(0, 10);
 const toBoolean = (value: unknown) => value === true || value === 'true' || value === 't' || value === 1;
 
+const syncSeedUser = async (
+  sql: ReturnType<typeof getSql>,
+  input: {
+    seedId: string;
+    username: string;
+    password: string;
+    role: UserRole;
+    restaurantIds: string[];
+  }
+) => {
+  const passwordHash = hashPassword(input.password);
+  const matchingUsers = (await sql`
+    SELECT id, username
+    FROM users
+    WHERE id = ${input.seedId}
+       OR username = ${input.username}
+    ORDER BY
+      CASE WHEN username = ${input.username} THEN 0 ELSE 1 END,
+      CASE WHEN id = ${input.seedId} THEN 0 ELSE 1 END,
+      id ASC
+  `) as Array<{ id: string; username: string }>;
+
+  const canonicalId = matchingUsers[0]?.id || input.seedId;
+
+  if (matchingUsers.length === 0) {
+    await sql`
+      INSERT INTO users (id, username, password_hash, role, restaurant_id, active)
+      VALUES (
+        ${canonicalId},
+        ${input.username},
+        ${passwordHash},
+        ${input.role},
+        ${input.role === 'super_admin' ? null : input.restaurantIds[0] ?? null},
+        TRUE
+      )
+    `;
+  } else {
+    for (const user of matchingUsers.slice(1)) {
+      await sql`DELETE FROM user_restaurants WHERE user_id = ${user.id}`;
+      await sql`DELETE FROM users WHERE id = ${user.id}`;
+    }
+
+    await sql`
+      UPDATE users
+      SET
+        username = ${input.username},
+        password_hash = ${passwordHash},
+        role = ${input.role},
+        restaurant_id = ${input.role === 'super_admin' ? null : input.restaurantIds[0] ?? null},
+        active = TRUE
+      WHERE id = ${canonicalId}
+    `;
+  }
+
+  await sql`DELETE FROM user_restaurants WHERE user_id = ${canonicalId}`;
+  if (input.role !== 'super_admin') {
+    for (const restaurantId of input.restaurantIds) {
+      await sql`
+        INSERT INTO user_restaurants (user_id, restaurant_id)
+        VALUES (${canonicalId}, ${restaurantId})
+        ON CONFLICT (user_id, restaurant_id) DO NOTHING
+      `;
+    }
+  }
+};
+
 const getDefaultRestaurantCredentials = () => {
   const username = process.env.APP_USERNAME;
   const password = process.env.APP_PASSWORD;
@@ -398,92 +464,21 @@ export async function ensureSchema() {
       const restaurantUser = getDefaultRestaurantCredentials();
       const superAdmin = getSuperAdminCredentials();
 
-      await sql`
-        UPDATE users
-        SET
-          username = ${restaurantUser.username},
-          password_hash = ${hashPassword(restaurantUser.password)},
-          role = 'restaurant_admin',
-          restaurant_id = ${DEFAULT_PRIMARY_RESTAURANT.id},
-          active = TRUE
-        WHERE id = 'user-restaurant-admin'
-           OR username = ${restaurantUser.username}
-      `;
+      await syncSeedUser(sql, {
+        seedId: 'user-restaurant-admin',
+        username: restaurantUser.username,
+        password: restaurantUser.password,
+        role: 'restaurant_admin',
+        restaurantIds: [DEFAULT_PRIMARY_RESTAURANT.id],
+      });
 
-      await sql`
-        INSERT INTO users (id, username, password_hash, role, restaurant_id, active)
-        SELECT
-          'user-restaurant-admin',
-          ${restaurantUser.username},
-          ${hashPassword(restaurantUser.password)},
-          'restaurant_admin',
-          ${DEFAULT_PRIMARY_RESTAURANT.id},
-          TRUE
-        WHERE NOT EXISTS (
-          SELECT 1
-          FROM users
-          WHERE id = 'user-restaurant-admin'
-             OR username = ${restaurantUser.username}
-        )
-      `;
-
-      await sql`
-        DELETE FROM user_restaurants
-        WHERE user_id IN (
-          SELECT id
-          FROM users
-          WHERE id = 'user-restaurant-admin'
-             OR username = ${restaurantUser.username}
-        )
-      `;
-
-      await sql`
-        INSERT INTO user_restaurants (user_id, restaurant_id)
-        SELECT id, ${DEFAULT_PRIMARY_RESTAURANT.id}
-        FROM users
-        WHERE id = 'user-restaurant-admin'
-           OR username = ${restaurantUser.username}
-        ON CONFLICT (user_id, restaurant_id) DO NOTHING
-      `;
-
-      await sql`
-        UPDATE users
-        SET
-          username = ${superAdmin.username},
-          password_hash = ${hashPassword(superAdmin.password)},
-          role = 'super_admin',
-          restaurant_id = NULL,
-          active = TRUE
-        WHERE id = 'user-super-admin'
-           OR username = ${superAdmin.username}
-      `;
-
-      await sql`
-        INSERT INTO users (id, username, password_hash, role, restaurant_id, active)
-        SELECT
-          'user-super-admin',
-          ${superAdmin.username},
-          ${hashPassword(superAdmin.password)},
-          'super_admin',
-          NULL,
-          TRUE
-        WHERE NOT EXISTS (
-          SELECT 1
-          FROM users
-          WHERE id = 'user-super-admin'
-             OR username = ${superAdmin.username}
-        )
-      `;
-
-      await sql`
-        DELETE FROM user_restaurants
-        WHERE user_id IN (
-          SELECT id
-          FROM users
-          WHERE id = 'user-super-admin'
-             OR username = ${superAdmin.username}
-        )
-      `;
+      await syncSeedUser(sql, {
+        seedId: 'user-super-admin',
+        username: superAdmin.username,
+        password: superAdmin.password,
+        role: 'super_admin',
+        restaurantIds: [],
+      });
 
       await sql`
         INSERT INTO cash_holder_profiles (id, name, active, created_at)
