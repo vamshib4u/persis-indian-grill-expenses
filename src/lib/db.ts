@@ -399,45 +399,90 @@ export async function ensureSchema() {
       const superAdmin = getSuperAdminCredentials();
 
       await sql`
+        UPDATE users
+        SET
+          username = ${restaurantUser.username},
+          password_hash = ${hashPassword(restaurantUser.password)},
+          role = 'restaurant_admin',
+          restaurant_id = ${DEFAULT_PRIMARY_RESTAURANT.id},
+          active = TRUE
+        WHERE id = 'user-restaurant-admin'
+           OR username = ${restaurantUser.username}
+      `;
+
+      await sql`
         INSERT INTO users (id, username, password_hash, role, restaurant_id, active)
-        VALUES (
+        SELECT
           'user-restaurant-admin',
           ${restaurantUser.username},
           ${hashPassword(restaurantUser.password)},
           'restaurant_admin',
           ${DEFAULT_PRIMARY_RESTAURANT.id},
           TRUE
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM users
+          WHERE id = 'user-restaurant-admin'
+             OR username = ${restaurantUser.username}
         )
-        ON CONFLICT (id) DO UPDATE
-        SET username = EXCLUDED.username,
-            password_hash = EXCLUDED.password_hash,
-            role = EXCLUDED.role,
-            restaurant_id = EXCLUDED.restaurant_id,
-            active = TRUE
+      `;
+
+      await sql`
+        DELETE FROM user_restaurants
+        WHERE user_id IN (
+          SELECT id
+          FROM users
+          WHERE id = 'user-restaurant-admin'
+             OR username = ${restaurantUser.username}
+        )
       `;
 
       await sql`
         INSERT INTO user_restaurants (user_id, restaurant_id)
-        VALUES ('user-restaurant-admin', ${DEFAULT_PRIMARY_RESTAURANT.id})
+        SELECT id, ${DEFAULT_PRIMARY_RESTAURANT.id}
+        FROM users
+        WHERE id = 'user-restaurant-admin'
+           OR username = ${restaurantUser.username}
         ON CONFLICT (user_id, restaurant_id) DO NOTHING
       `;
 
       await sql`
+        UPDATE users
+        SET
+          username = ${superAdmin.username},
+          password_hash = ${hashPassword(superAdmin.password)},
+          role = 'super_admin',
+          restaurant_id = NULL,
+          active = TRUE
+        WHERE id = 'user-super-admin'
+           OR username = ${superAdmin.username}
+      `;
+
+      await sql`
         INSERT INTO users (id, username, password_hash, role, restaurant_id, active)
-        VALUES (
+        SELECT
           'user-super-admin',
           ${superAdmin.username},
           ${hashPassword(superAdmin.password)},
           'super_admin',
           NULL,
           TRUE
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM users
+          WHERE id = 'user-super-admin'
+             OR username = ${superAdmin.username}
         )
-        ON CONFLICT (id) DO UPDATE
-        SET username = EXCLUDED.username,
-            password_hash = EXCLUDED.password_hash,
-            role = EXCLUDED.role,
-            restaurant_id = NULL,
-            active = TRUE
+      `;
+
+      await sql`
+        DELETE FROM user_restaurants
+        WHERE user_id IN (
+          SELECT id
+          FROM users
+          WHERE id = 'user-super-admin'
+             OR username = ${superAdmin.username}
+        )
       `;
 
       await sql`
