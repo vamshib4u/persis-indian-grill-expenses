@@ -65,11 +65,15 @@ export interface Restaurant {
 
 export interface CashHolderConfig {
   id: string;
-  restaurantId: string;
   name: string;
   startingAmount: number;
   active: boolean;
   createdAt: Date | string;
+}
+
+export interface CashHolderAdminConfig extends CashHolderConfig {
+  visibleRestaurantIds: string[];
+  startingAmountsByRestaurant: Record<string, number>;
 }
 
 export type UserRole = 'restaurant_admin' | 'super_admin';
@@ -78,7 +82,7 @@ export interface AppUser {
   id: string;
   username: string;
   role: UserRole;
-  restaurantId?: string;
+  restaurantIds: string[];
   active: boolean;
   createdAt: Date | string;
 }

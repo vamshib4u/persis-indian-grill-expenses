@@ -14,14 +14,14 @@ const normalizeUser = (user: {
   id: string;
   username: string;
   role: UserRole;
-  restaurantId?: string;
+  restaurantIds: string[];
   active: boolean;
   createdAt: Date | string;
 }): AppUser => ({
   id: user.id,
   username: user.username,
   role: user.role,
-  restaurantId: user.restaurantId || undefined,
+  restaurantIds: user.restaurantIds,
   active: user.active,
   createdAt: user.createdAt,
 });
@@ -50,7 +50,7 @@ export const verifyPassword = (password: string, passwordHash: string) => hashPa
 
 const resolveRestaurantsForUser = (user: AppUser, restaurants: Restaurant[]) => {
   if (user.role === 'super_admin') return restaurants;
-  return restaurants.filter((restaurant) => restaurant.id === user.restaurantId);
+  return restaurants.filter((restaurant) => user.restaurantIds.includes(restaurant.id));
 };
 
 const buildSessionData = async (
@@ -81,7 +81,7 @@ export const authenticateUser = async (username: string, password: string) => {
   if (!user || !user.active) return null;
   if (!verifyPassword(password, user.passwordHash)) return null;
 
-  return buildSessionData(user, user.restaurantId || undefined);
+  return buildSessionData(user, user.restaurantIds[0] || undefined);
 };
 
 export const getSessionFromToken = async (token: string | undefined) => {
@@ -104,6 +104,6 @@ export const getServerSession = async () => {
 export const canAccessRestaurant = (session: SessionData, restaurantId: string) =>
   session.restaurants.some((restaurant) => restaurant.id === restaurantId);
 
-export const getDefaultRestaurantIdForUser = (user: AppUser) => user.restaurantId || '';
+export const getDefaultRestaurantIdForUser = (user: AppUser) => user.restaurantIds[0] || '';
 
 export { createSessionToken, getSessionCookieName, getSessionMaxAge };

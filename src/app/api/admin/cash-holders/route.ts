@@ -15,8 +15,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const cashHolder = await createCashHolder({
       id: body.id,
-      restaurantId: body.restaurantId,
       name: body.name,
+      restaurantIds: Array.isArray(body.restaurantIds) ? body.restaurantIds : [],
+      startingAmountsByRestaurant:
+        typeof body.startingAmountsByRestaurant === 'object' && body.startingAmountsByRestaurant
+          ? body.startingAmountsByRestaurant
+          : {},
       startingAmount: body.startingAmount,
       active: body.active,
     });
@@ -40,9 +44,12 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const cashHolder = await updateCashHolder({
       id: body.id,
-      restaurantId: body.restaurantId,
       name: body.name,
-      startingAmount: body.startingAmount,
+      restaurantIds: Array.isArray(body.restaurantIds) ? body.restaurantIds : [],
+      startingAmountsByRestaurant:
+        typeof body.startingAmountsByRestaurant === 'object' && body.startingAmountsByRestaurant
+          ? body.startingAmountsByRestaurant
+          : {},
       active: body.active,
     });
     if (!cashHolder) {
