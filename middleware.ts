@@ -31,7 +31,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) {
+  if (
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/food-cost') ||
+    pathname.startsWith('/api/admin') ||
+    pathname.startsWith('/api/food-cost')
+  ) {
     if (session.role !== 'super_admin') {
       if (pathname.startsWith('/api/')) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

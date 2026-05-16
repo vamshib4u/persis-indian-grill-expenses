@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BarChart3, CreditCard, DollarSign, LogOut, Menu, Settings, Truck, X } from 'lucide-react';
+import { BarChart3, ChefHat, CreditCard, DollarSign, LogOut, Menu, Settings, Truck, X } from 'lucide-react';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { getStorageVersion, storage, subscribeToStorage } from '@/lib/storage';
 
@@ -88,17 +88,30 @@ export const Navigation = () => {
               );
             })}
             {session?.user.role === 'super_admin' && (
-              <Link
-                href="/admin"
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-                  isActive('/admin')
-                    ? 'bg-blue-100 text-blue-600 font-medium'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                }`}
-              >
-                <Settings size={18} />
-                <span>Admin</span>
-              </Link>
+              <>
+                <Link
+                  href="/food-cost"
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                    isActive('/food-cost')
+                      ? 'bg-blue-100 text-blue-600 font-medium'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  <ChefHat size={18} />
+                  <span>Food Cost</span>
+                </Link>
+                <Link
+                  href="/admin"
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                    isActive('/admin')
+                      ? 'bg-blue-100 text-blue-600 font-medium'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  <Settings size={18} />
+                  <span>Admin</span>
+                </Link>
+              </>
             )}
             <button
               onClick={handleLogout}
@@ -155,18 +168,32 @@ export const Navigation = () => {
               );
             })}
             {session?.user.role === 'super_admin' && (
-              <Link
-                href="/admin"
-                onClick={() => setIsOpen(false)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors w-full ${
-                  isActive('/admin')
-                    ? 'bg-blue-100 text-blue-600 font-medium'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                }`}
-              >
-                <Settings size={18} />
-                <span>Admin</span>
-              </Link>
+              <>
+                <Link
+                  href="/food-cost"
+                  onClick={() => setIsOpen(false)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors w-full ${
+                    isActive('/food-cost')
+                      ? 'bg-blue-100 text-blue-600 font-medium'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  <ChefHat size={18} />
+                  <span>Food Cost</span>
+                </Link>
+                <Link
+                  href="/admin"
+                  onClick={() => setIsOpen(false)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors w-full ${
+                    isActive('/admin')
+                      ? 'bg-blue-100 text-blue-600 font-medium'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  <Settings size={18} />
+                  <span>Admin</span>
+                </Link>
+              </>
             )}
             <button
               onClick={handleLogout}

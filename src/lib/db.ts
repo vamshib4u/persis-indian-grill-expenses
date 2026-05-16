@@ -7,6 +7,10 @@ import {
   CashHolderConfig,
   CateringOrder,
   DailySales,
+  IngredientPrice,
+  MenuIngredient,
+  MenuItemCost,
+  OperatingCost,
   Restaurant,
   Transaction,
   UserRole,
@@ -98,6 +102,59 @@ const userSchema = z.object({
   createdAt: z.coerce.date(),
 });
 
+const ingredientPriceSchema = z.object({
+  id: z.string().min(1),
+  restaurantId: z.string().min(1),
+  name: z.string().min(1),
+  itemCode: z.string().optional().nullable(),
+  category: z.string().optional().nullable(),
+  packageQuantity: z.coerce.number().positive(),
+  packageUnit: z.string().min(1),
+  packagePrice: z.coerce.number().nonnegative(),
+  priceDate: z.coerce.date(),
+  source: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  createdAt: z.coerce.date(),
+});
+
+const operatingCostSchema = z.object({
+  id: z.string().min(1),
+  restaurantId: z.string().min(1),
+  costType: z.enum(['employee', 'utility', 'rent', 'packaging', 'gas', 'electricity', 'other']),
+  name: z.string().min(1),
+  designation: z.string().optional().nullable(),
+  amount: z.coerce.number().nonnegative(),
+  payCycle: z.enum(['hourly', 'weekly', 'biweekly', 'monthly', 'one_time']),
+  hoursPerCycle: z.coerce.number().nonnegative(),
+  monthlyAmount: z.coerce.number().nonnegative(),
+  effectiveDate: z.coerce.date(),
+  notes: z.string().optional().nullable(),
+  createdAt: z.coerce.date(),
+});
+
+const menuIngredientSchema = z.object({
+  ingredientName: z.string().min(1),
+  quantity: z.coerce.number().nonnegative(),
+  unit: z.string().min(1),
+});
+
+const menuItemCostSchema = z.object({
+  id: z.string().min(1),
+  restaurantId: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string(),
+  servingSize: z.coerce.number().positive(),
+  servingUnit: z.string().min(1),
+  salePrice: z.coerce.number().nonnegative(),
+  gasCost: z.coerce.number().nonnegative(),
+  electricityCost: z.coerce.number().nonnegative(),
+  packagingCost: z.coerce.number().nonnegative(),
+  laborCost: z.coerce.number().nonnegative(),
+  otherCost: z.coerce.number().nonnegative(),
+  ingredients: z.array(menuIngredientSchema),
+  createdAt: z.coerce.date(),
+});
+
 type SaleInput = z.input<typeof saleSchema>;
 type TransactionInput = z.input<typeof transactionSchema>;
 type CateringOrderInput = z.input<typeof cateringOrderSchema>;
@@ -105,9 +162,13 @@ type RestaurantInput = z.input<typeof restaurantSchema>;
 type CashHolderInput = z.input<typeof cashHolderSchema>;
 type CashHolderAdminInput = z.input<typeof cashHolderAdminSchema>;
 type UserInput = z.input<typeof userSchema>;
+type IngredientPriceInput = z.input<typeof ingredientPriceSchema>;
+type OperatingCostInput = z.input<typeof operatingCostSchema>;
+type MenuItemCostInput = z.input<typeof menuItemCostSchema>;
 
 declare global {
   var __persisSchemaReady: Promise<void> | undefined;
+  var __persisOperatingCostConstraintReady: Promise<void> | undefined;
 }
 
 const getSql = () => {
@@ -317,6 +378,97 @@ const mapUser = (user: UserInput): AppUser & { passwordHash: string } => {
   };
 };
 
+const withoutPasswordHash = ({ passwordHash, ...user }: AppUser & { passwordHash: string }): AppUser => {
+  void passwordHash;
+  return user;
+};
+
+const mapIngredientPrice = (ingredient: IngredientPriceInput): IngredientPrice => {
+  const parsed = ingredientPriceSchema.parse(ingredient);
+  return {
+    id: parsed.id,
+    restaurantId: parsed.restaurantId,
+    name: parsed.name,
+    itemCode: parsed.itemCode ?? '',
+    category: parsed.category ?? '',
+    packageQuantity: parsed.packageQuantity,
+    packageUnit: parsed.packageUnit,
+    packagePrice: parsed.packagePrice,
+    priceDate: toDateOnly(ingredient.priceDate),
+    source: parsed.source ?? '',
+    notes: parsed.notes ?? '',
+    createdAt: parsed.createdAt.toISOString(),
+  };
+};
+
+const mapOperatingCost = (cost: OperatingCostInput): OperatingCost => {
+  const parsed = operatingCostSchema.parse(cost);
+  return {
+    id: parsed.id,
+    restaurantId: parsed.restaurantId,
+    costType: parsed.costType,
+    name: parsed.name,
+    designation: parsed.designation ?? '',
+    amount: parsed.amount,
+    payCycle: parsed.payCycle,
+    hoursPerCycle: parsed.hoursPerCycle,
+    monthlyAmount: parsed.monthlyAmount,
+    effectiveDate: toDateOnly(cost.effectiveDate),
+    notes: parsed.notes ?? '',
+    createdAt: parsed.createdAt.toISOString(),
+  };
+};
+
+const normalizeMenuIngredients = (value: unknown): MenuIngredient[] => {
+  if (typeof value === 'string') {
+    try {
+      return z.array(menuIngredientSchema).parse(JSON.parse(value));
+    } catch {
+      return [];
+    }
+  }
+  return z.array(menuIngredientSchema).parse(value ?? []);
+};
+
+const mapMenuItemCost = (item: MenuItemCostInput): MenuItemCost => {
+  const parsed = menuItemCostSchema.parse({
+    ...item,
+    ingredients: normalizeMenuIngredients(item.ingredients),
+  });
+  return {
+    id: parsed.id,
+    restaurantId: parsed.restaurantId,
+    name: parsed.name,
+    description: parsed.description,
+    servingSize: parsed.servingSize,
+    servingUnit: parsed.servingUnit,
+    salePrice: parsed.salePrice,
+    gasCost: parsed.gasCost,
+    electricityCost: parsed.electricityCost,
+    packagingCost: parsed.packagingCost,
+    laborCost: parsed.laborCost,
+    otherCost: parsed.otherCost,
+    ingredients: parsed.ingredients,
+    createdAt: parsed.createdAt.toISOString(),
+  };
+};
+
+const ensureOperatingCostTypeConstraint = async () => {
+  if (!globalThis.__persisOperatingCostConstraintReady) {
+    globalThis.__persisOperatingCostConstraintReady = (async () => {
+      const sql = getSql();
+      await sql`ALTER TABLE operating_costs DROP CONSTRAINT IF EXISTS operating_costs_cost_type_check`;
+      await sql`
+        ALTER TABLE operating_costs
+        ADD CONSTRAINT operating_costs_cost_type_check
+        CHECK (cost_type IN ('employee', 'utility', 'rent', 'packaging', 'gas', 'electricity', 'other'))
+      `;
+    })();
+  }
+
+  return globalThis.__persisOperatingCostConstraintReady;
+};
+
 export async function ensureSchema() {
   if (!globalThis.__persisSchemaReady) {
     globalThis.__persisSchemaReady = (async () => {
@@ -423,6 +575,66 @@ export async function ensureSchema() {
           final_payment_date TIMESTAMPTZ,
           final_payment_cash_holder TEXT,
           notes TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS ingredient_prices (
+          id TEXT PRIMARY KEY,
+          restaurant_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          item_code TEXT,
+          category TEXT,
+          package_quantity NUMERIC(12, 4) NOT NULL,
+          package_unit TEXT NOT NULL,
+          package_price NUMERIC(12, 2) NOT NULL,
+          price_date DATE NOT NULL,
+          source TEXT,
+          notes TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS operating_costs (
+          id TEXT PRIMARY KEY,
+          restaurant_id TEXT NOT NULL,
+          cost_type TEXT NOT NULL CHECK (cost_type IN ('employee', 'utility', 'rent', 'packaging', 'gas', 'electricity', 'other')),
+          name TEXT NOT NULL,
+          designation TEXT,
+          amount NUMERIC(12, 2) NOT NULL,
+          pay_cycle TEXT NOT NULL CHECK (pay_cycle IN ('hourly', 'weekly', 'biweekly', 'monthly', 'one_time')),
+          hours_per_cycle NUMERIC(12, 2) NOT NULL DEFAULT 0,
+          monthly_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+          effective_date DATE NOT NULL,
+          notes TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `;
+
+      await sql`ALTER TABLE operating_costs DROP CONSTRAINT IF EXISTS operating_costs_cost_type_check`;
+      await sql`
+        ALTER TABLE operating_costs
+        ADD CONSTRAINT operating_costs_cost_type_check
+        CHECK (cost_type IN ('employee', 'utility', 'rent', 'packaging', 'gas', 'electricity', 'other'))
+      `;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS menu_item_costs (
+          id TEXT PRIMARY KEY,
+          restaurant_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          serving_size NUMERIC(12, 4) NOT NULL,
+          serving_unit TEXT NOT NULL,
+          sale_price NUMERIC(12, 2) NOT NULL DEFAULT 0,
+          gas_cost NUMERIC(12, 2) NOT NULL DEFAULT 0,
+          electricity_cost NUMERIC(12, 2) NOT NULL DEFAULT 0,
+          packaging_cost NUMERIC(12, 2) NOT NULL DEFAULT 0,
+          labor_cost NUMERIC(12, 2) NOT NULL DEFAULT 0,
+          other_cost NUMERIC(12, 2) NOT NULL DEFAULT 0,
+          ingredients JSONB NOT NULL DEFAULT '[]'::jsonb,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
       `;
@@ -545,6 +757,22 @@ export async function ensureSchema() {
       `;
       await sql`CREATE INDEX IF NOT EXISTS transactions_type_idx ON transactions (restaurant_id, type)`;
       await sql`CREATE INDEX IF NOT EXISTS catering_ready_at_idx ON catering_orders (restaurant_id, ready_at DESC)`;
+      await sql`
+        CREATE INDEX IF NOT EXISTS ingredient_prices_lookup_idx
+        ON ingredient_prices (restaurant_id, lower(name), price_date DESC)
+      `;
+      await sql`
+        CREATE INDEX IF NOT EXISTS ingredient_prices_code_idx
+        ON ingredient_prices (restaurant_id, item_code)
+      `;
+      await sql`
+        CREATE INDEX IF NOT EXISTS operating_costs_effective_idx
+        ON operating_costs (restaurant_id, cost_type, effective_date DESC)
+      `;
+      await sql`
+        CREATE INDEX IF NOT EXISTS menu_item_costs_name_idx
+        ON menu_item_costs (restaurant_id, lower(name))
+      `;
       await sql`
         CREATE INDEX IF NOT EXISTS user_restaurants_user_idx
         ON user_restaurants (user_id, restaurant_id)
@@ -776,7 +1004,7 @@ export async function listUsers(): Promise<AppUser[]> {
     FROM users
     ORDER BY username ASC
   `) as UserInput[];
-  return rows.map(mapUser).map(({ passwordHash: _passwordHash, ...user }) => user);
+  return rows.map(mapUser).map(withoutPasswordHash);
 }
 
 export async function createUser(input: {
@@ -789,7 +1017,7 @@ export async function createUser(input: {
 }) {
   await ensureSchema();
   const sql = getSql();
-  const [row] = (await sql`
+  await sql`
     INSERT INTO users (id, username, password_hash, role, restaurant_id, active)
     VALUES (
       ${input.id},
@@ -807,7 +1035,7 @@ export async function createUser(input: {
       ARRAY[]::TEXT[] AS "restaurantIds",
       active,
       created_at AS "createdAt"
-  `) as UserInput[];
+  `;
   if (input.role !== 'super_admin') {
     for (const restaurantId of input.restaurantIds ?? []) {
       await sql`
@@ -821,8 +1049,7 @@ export async function createUser(input: {
   if (!created) {
     throw new Error('Failed to load created user');
   }
-  const { passwordHash: _passwordHash, ...user } = created;
-  return user;
+  return withoutPasswordHash(created);
 }
 
 export async function updateUser(input: {
@@ -871,8 +1098,7 @@ export async function updateUser(input: {
 
   const updated = await getUserById(input.id);
   if (!updated) return null;
-  const { passwordHash: _passwordHash, ...user } = updated;
-  return user;
+  return withoutPasswordHash(updated);
 }
 
 export async function listSales(restaurantId: string): Promise<DailySales[]> {
@@ -1101,6 +1327,319 @@ export async function deleteTransaction(id: string, restaurantId: string) {
   const sql = getSql();
   const result = (await sql`
     DELETE FROM transactions
+    WHERE id = ${id} AND restaurant_id = ${restaurantId}
+    RETURNING id
+  `) as Array<{ id: string }>;
+  return result.length > 0;
+}
+
+export async function listIngredientPrices(restaurantId: string): Promise<IngredientPrice[]> {
+  await ensureSchema();
+  const sql = getSql();
+  const rows = (await sql`
+    SELECT
+      id,
+      restaurant_id AS "restaurantId",
+      name,
+      item_code AS "itemCode",
+      category,
+      package_quantity::float8 AS "packageQuantity",
+      package_unit AS "packageUnit",
+      package_price::float8 AS "packagePrice",
+      price_date AS "priceDate",
+      source,
+      notes,
+      created_at AS "createdAt"
+    FROM ingredient_prices
+    WHERE restaurant_id = ${restaurantId}
+    ORDER BY price_date DESC, lower(name) ASC, created_at DESC
+  `) as IngredientPriceInput[];
+
+  return rows.map(mapIngredientPrice);
+}
+
+export async function upsertIngredientPrice(input: IngredientPriceInput): Promise<IngredientPrice> {
+  const ingredient = ingredientPriceSchema.parse(input);
+  await ensureSchema();
+  const sql = getSql();
+
+  const [row] = (await sql`
+    INSERT INTO ingredient_prices (
+      id,
+      restaurant_id,
+      name,
+      item_code,
+      category,
+      package_quantity,
+      package_unit,
+      package_price,
+      price_date,
+      source,
+      notes,
+      created_at
+    )
+    VALUES (
+      ${ingredient.id},
+      ${ingredient.restaurantId},
+      ${ingredient.name},
+      ${ingredient.itemCode ?? ''},
+      ${ingredient.category ?? ''},
+      ${ingredient.packageQuantity},
+      ${ingredient.packageUnit},
+      ${ingredient.packagePrice},
+      ${toDateOnly(ingredient.priceDate)},
+      ${ingredient.source ?? ''},
+      ${ingredient.notes ?? ''},
+      ${ingredient.createdAt.toISOString()}
+    )
+    ON CONFLICT (id) DO UPDATE
+    SET
+      name = EXCLUDED.name,
+      item_code = EXCLUDED.item_code,
+      category = EXCLUDED.category,
+      package_quantity = EXCLUDED.package_quantity,
+      package_unit = EXCLUDED.package_unit,
+      package_price = EXCLUDED.package_price,
+      price_date = EXCLUDED.price_date,
+      source = EXCLUDED.source,
+      notes = EXCLUDED.notes
+    RETURNING
+      id,
+      restaurant_id AS "restaurantId",
+      name,
+      item_code AS "itemCode",
+      category,
+      package_quantity::float8 AS "packageQuantity",
+      package_unit AS "packageUnit",
+      package_price::float8 AS "packagePrice",
+      price_date AS "priceDate",
+      source,
+      notes,
+      created_at AS "createdAt"
+  `) as IngredientPriceInput[];
+
+  return mapIngredientPrice(row);
+}
+
+export async function deleteIngredientPrice(id: string, restaurantId: string) {
+  await ensureSchema();
+  const sql = getSql();
+  const result = (await sql`
+    DELETE FROM ingredient_prices
+    WHERE id = ${id} AND restaurant_id = ${restaurantId}
+    RETURNING id
+  `) as Array<{ id: string }>;
+  return result.length > 0;
+}
+
+export async function listOperatingCosts(restaurantId: string): Promise<OperatingCost[]> {
+  await ensureSchema();
+  await ensureOperatingCostTypeConstraint();
+  const sql = getSql();
+  const rows = (await sql`
+    SELECT
+      id,
+      restaurant_id AS "restaurantId",
+      cost_type AS "costType",
+      name,
+      designation,
+      amount::float8 AS amount,
+      pay_cycle AS "payCycle",
+      hours_per_cycle::float8 AS "hoursPerCycle",
+      monthly_amount::float8 AS "monthlyAmount",
+      effective_date AS "effectiveDate",
+      notes,
+      created_at AS "createdAt"
+    FROM operating_costs
+    WHERE restaurant_id = ${restaurantId}
+    ORDER BY effective_date DESC, cost_type ASC, name ASC
+  `) as OperatingCostInput[];
+
+  return rows.map(mapOperatingCost);
+}
+
+export async function upsertOperatingCost(input: OperatingCostInput): Promise<OperatingCost> {
+  const cost = operatingCostSchema.parse(input);
+  await ensureSchema();
+  await ensureOperatingCostTypeConstraint();
+  const sql = getSql();
+
+  const [row] = (await sql`
+    INSERT INTO operating_costs (
+      id,
+      restaurant_id,
+      cost_type,
+      name,
+      designation,
+      amount,
+      pay_cycle,
+      hours_per_cycle,
+      monthly_amount,
+      effective_date,
+      notes,
+      created_at
+    )
+    VALUES (
+      ${cost.id},
+      ${cost.restaurantId},
+      ${cost.costType},
+      ${cost.name},
+      ${cost.designation ?? ''},
+      ${cost.amount},
+      ${cost.payCycle},
+      ${cost.hoursPerCycle},
+      ${cost.monthlyAmount},
+      ${toDateOnly(cost.effectiveDate)},
+      ${cost.notes ?? ''},
+      ${cost.createdAt.toISOString()}
+    )
+    ON CONFLICT (id) DO UPDATE
+    SET
+      cost_type = EXCLUDED.cost_type,
+      name = EXCLUDED.name,
+      designation = EXCLUDED.designation,
+      amount = EXCLUDED.amount,
+      pay_cycle = EXCLUDED.pay_cycle,
+      hours_per_cycle = EXCLUDED.hours_per_cycle,
+      monthly_amount = EXCLUDED.monthly_amount,
+      effective_date = EXCLUDED.effective_date,
+      notes = EXCLUDED.notes
+    RETURNING
+      id,
+      restaurant_id AS "restaurantId",
+      cost_type AS "costType",
+      name,
+      designation,
+      amount::float8 AS amount,
+      pay_cycle AS "payCycle",
+      hours_per_cycle::float8 AS "hoursPerCycle",
+      monthly_amount::float8 AS "monthlyAmount",
+      effective_date AS "effectiveDate",
+      notes,
+      created_at AS "createdAt"
+  `) as OperatingCostInput[];
+
+  return mapOperatingCost(row);
+}
+
+export async function deleteOperatingCost(id: string, restaurantId: string) {
+  await ensureSchema();
+  const sql = getSql();
+  const result = (await sql`
+    DELETE FROM operating_costs
+    WHERE id = ${id} AND restaurant_id = ${restaurantId}
+    RETURNING id
+  `) as Array<{ id: string }>;
+  return result.length > 0;
+}
+
+export async function listMenuItemCosts(restaurantId: string): Promise<MenuItemCost[]> {
+  await ensureSchema();
+  const sql = getSql();
+  const rows = (await sql`
+    SELECT
+      id,
+      restaurant_id AS "restaurantId",
+      name,
+      description,
+      serving_size::float8 AS "servingSize",
+      serving_unit AS "servingUnit",
+      sale_price::float8 AS "salePrice",
+      gas_cost::float8 AS "gasCost",
+      electricity_cost::float8 AS "electricityCost",
+      packaging_cost::float8 AS "packagingCost",
+      labor_cost::float8 AS "laborCost",
+      other_cost::float8 AS "otherCost",
+      ingredients,
+      created_at AS "createdAt"
+    FROM menu_item_costs
+    WHERE restaurant_id = ${restaurantId}
+    ORDER BY lower(name) ASC
+  `) as MenuItemCostInput[];
+
+  return rows.map(mapMenuItemCost);
+}
+
+export async function upsertMenuItemCost(input: MenuItemCostInput): Promise<MenuItemCost> {
+  const item = menuItemCostSchema.parse({
+    ...input,
+    ingredients: normalizeMenuIngredients(input.ingredients),
+  });
+  await ensureSchema();
+  const sql = getSql();
+  const ingredientsJson = JSON.stringify(item.ingredients);
+
+  const [row] = (await sql`
+    INSERT INTO menu_item_costs (
+      id,
+      restaurant_id,
+      name,
+      description,
+      serving_size,
+      serving_unit,
+      sale_price,
+      gas_cost,
+      electricity_cost,
+      packaging_cost,
+      labor_cost,
+      other_cost,
+      ingredients,
+      created_at
+    )
+    VALUES (
+      ${item.id},
+      ${item.restaurantId},
+      ${item.name},
+      ${item.description},
+      ${item.servingSize},
+      ${item.servingUnit},
+      ${item.salePrice},
+      ${item.gasCost},
+      ${item.electricityCost},
+      ${item.packagingCost},
+      ${item.laborCost},
+      ${item.otherCost},
+      ${ingredientsJson}::jsonb,
+      ${item.createdAt.toISOString()}
+    )
+    ON CONFLICT (id) DO UPDATE
+    SET
+      name = EXCLUDED.name,
+      description = EXCLUDED.description,
+      serving_size = EXCLUDED.serving_size,
+      serving_unit = EXCLUDED.serving_unit,
+      sale_price = EXCLUDED.sale_price,
+      gas_cost = EXCLUDED.gas_cost,
+      electricity_cost = EXCLUDED.electricity_cost,
+      packaging_cost = EXCLUDED.packaging_cost,
+      labor_cost = EXCLUDED.labor_cost,
+      other_cost = EXCLUDED.other_cost,
+      ingredients = EXCLUDED.ingredients
+    RETURNING
+      id,
+      restaurant_id AS "restaurantId",
+      name,
+      description,
+      serving_size::float8 AS "servingSize",
+      serving_unit AS "servingUnit",
+      sale_price::float8 AS "salePrice",
+      gas_cost::float8 AS "gasCost",
+      electricity_cost::float8 AS "electricityCost",
+      packaging_cost::float8 AS "packagingCost",
+      labor_cost::float8 AS "laborCost",
+      other_cost::float8 AS "otherCost",
+      ingredients,
+      created_at AS "createdAt"
+  `) as MenuItemCostInput[];
+
+  return mapMenuItemCost(row);
+}
+
+export async function deleteMenuItemCost(id: string, restaurantId: string) {
+  await ensureSchema();
+  const sql = getSql();
+  const result = (await sql`
+    DELETE FROM menu_item_costs
     WHERE id = ${id} AND restaurant_id = ${restaurantId}
     RETURNING id
   `) as Array<{ id: string }>;
