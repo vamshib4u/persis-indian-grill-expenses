@@ -9,7 +9,7 @@ import { PersistenceStatusCard } from '@/components/PersistenceStatusCard';
 import { isStorageLoaded, isStorageLoading, storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, DollarSign, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, parseDateOnly } from '@/lib/utils';
 import { endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function PayoutsPage() {
@@ -38,11 +38,11 @@ export default function PayoutsPage() {
     const monthEnd = endOfMonth(monthStart);
 
     const monthlyTransactions = allTransactions.filter(transaction =>
-      isWithinInterval(new Date(transaction.date), { start: monthStart, end: monthEnd })
+      isWithinInterval(parseDateOnly(transaction.date), { start: monthStart, end: monthEnd })
     );
     const monthlyPayouts = monthlyTransactions.filter(t => t.type === 'payout');
     return {
-      payouts: monthlyPayouts.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+      payouts: monthlyPayouts.sort((a, b) => parseDateOnly(a.date).getTime() - parseDateOnly(b.date).getTime()),
       allSales,
       allTransactions,
       allCateringOrders,

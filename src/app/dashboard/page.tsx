@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { generateMonthlyReport, formatCurrency } from '@/lib/utils';
+import { generateMonthlyReport, formatCurrency, parseDateOnly } from '@/lib/utils';
 import { CashHoldingYearSummary } from '@/components/CashHoldingYearSummary';
 import { PersistenceStatusCard } from '@/components/PersistenceStatusCard';
 import { isStorageLoaded, isStorageLoading, storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
@@ -35,8 +35,8 @@ export default function Dashboard() {
     const cateringOrders = storage.getCateringOrders();
     const cashHolders = storage.getCashHolders();
     const restaurantName = storage.getActiveRestaurant()?.name || 'Restaurant';
-    const yearSales = sales.filter(s => new Date(s.date).getFullYear() === year);
-    const yearTransactions = transactions.filter(t => new Date(t.date).getFullYear() === year);
+    const yearSales = sales.filter(s => parseDateOnly(s.date).getFullYear() === year);
+    const yearTransactions = transactions.filter(t => parseDateOnly(t.date).getFullYear() === year);
 
     const totalSquareSales = yearSales.reduce((sum, s) => sum + s.squareSales, 0);
     const totalUnreportedCash = yearSales.reduce((sum, s) => sum + s.cashCollected, 0);

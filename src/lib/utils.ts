@@ -11,11 +11,11 @@ export const generateMonthlyReport = (
   const monthEnd = endOfMonth(monthStart);
 
   const monthSales = sales.filter(s =>
-    isWithinInterval(new Date(s.date), { start: monthStart, end: monthEnd })
+    isWithinInterval(parseDateOnly(s.date), { start: monthStart, end: monthEnd })
   );
 
   const monthTransactions = transactions.filter(t =>
-    isWithinInterval(new Date(t.date), { start: monthStart, end: monthEnd })
+    isWithinInterval(parseDateOnly(t.date), { start: monthStart, end: monthEnd })
   );
 
   const monthExpenses = monthTransactions.filter(t => t.type === 'expense');
@@ -87,6 +87,39 @@ export const generateId = (): string => {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 };
 
+export const toDateInputValue = (value?: Date | string): string => {
+  if (!value) {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  if (typeof value === 'string') {
+    const match = value.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) return match[1];
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+export const parseDateOnly = (value: Date | string): Date => {
+  if (value instanceof Date) return value;
+
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|T00:00:00)/);
+  if (match) {
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  }
+
+  return new Date(value);
+};
+
 export const formatCurrency = (amount: number): string => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -95,7 +128,7 @@ export const formatCurrency = (amount: number): string => {
 };
 
 export const formatDate = (date: Date | string): string => {
-  const d = typeof date === 'string' ? new Date(date) : date;
+  const d = parseDateOnly(date);
   return d.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',

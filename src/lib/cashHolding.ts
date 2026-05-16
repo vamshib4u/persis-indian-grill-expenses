@@ -1,4 +1,5 @@
 import { CashHolderConfig, CateringOrder, DailySales, Transaction } from '@/types';
+import { parseDateOnly } from '@/lib/utils';
 
 export type CashHoldingRow = {
   name: string;
@@ -83,14 +84,14 @@ export const getCashHoldingSummary = (
   const cateringByMonth = new Map<string, Map<string, number>>();
 
   sales.forEach((sale) => {
-    addToBucket(salesByMonth, toMonthKey(new Date(sale.date)), normalizeHolder(sale.cashHolder), sale.cashCollected || 0);
+    addToBucket(salesByMonth, toMonthKey(parseDateOnly(sale.date)), normalizeHolder(sale.cashHolder), sale.cashCollected || 0);
   });
 
   transactions.forEach((transaction) => {
     if (transaction.type !== 'expense' || transaction.paymentMethod !== 'cash') return;
     addToBucket(
       expensesByMonth,
-      toMonthKey(new Date(transaction.date)),
+      toMonthKey(parseDateOnly(transaction.date)),
       normalizeHolder(transaction.spentBy),
       transaction.amount || 0
     );
@@ -116,8 +117,8 @@ export const getCashHoldingSummary = (
   });
 
   const allDates = [
-    ...sales.map((sale) => new Date(sale.date)),
-    ...transactions.map((transaction) => new Date(transaction.date)),
+    ...sales.map((sale) => parseDateOnly(sale.date)),
+    ...transactions.map((transaction) => parseDateOnly(transaction.date)),
     ...cateringOrders.map((order) => new Date(order.readyAt)),
     ...cateringOrders
       .flatMap((order) => [order.depositPaidDate, order.finalPaymentDate])
@@ -204,14 +205,14 @@ export const getCashHoldingYearSnapshot = (
   const cateringByYear = new Map<string, number>();
 
   sales.forEach((sale) => {
-    if (new Date(sale.date).getFullYear() !== year) return;
+    if (parseDateOnly(sale.date).getFullYear() !== year) return;
     const holder = normalizeHolder(sale.cashHolder);
     salesByYear.set(holder, (salesByYear.get(holder) || 0) + (sale.cashCollected || 0));
   });
 
   transactions.forEach((transaction) => {
     if (transaction.type !== 'expense' || transaction.paymentMethod !== 'cash') return;
-    if (new Date(transaction.date).getFullYear() !== year) return;
+    if (parseDateOnly(transaction.date).getFullYear() !== year) return;
     const holder = normalizeHolder(transaction.spentBy);
     expensesByYear.set(holder, (expensesByYear.get(holder) || 0) + (transaction.amount || 0));
   });

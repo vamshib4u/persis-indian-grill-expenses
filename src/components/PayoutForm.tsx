@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Transaction } from '@/types';
-import { generateId } from '@/lib/utils';
+import { generateId, toDateInputValue } from '@/lib/utils';
 import { X } from 'lucide-react';
 
 interface PayoutFormProps {
@@ -14,7 +14,7 @@ interface PayoutFormProps {
 
 export const PayoutForm = ({ payout, restaurantId, onSubmit, onClose }: PayoutFormProps) => {
   const [formData, setFormData] = useState({
-    date: payout ? new Date(payout.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    date: toDateInputValue(payout?.date),
     amount: payout?.amount || 0,
     payeeName: payout?.payeeName || '',
     purpose: payout?.purpose || '',
@@ -26,14 +26,10 @@ export const PayoutForm = ({ payout, restaurantId, onSubmit, onClose }: PayoutFo
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Parse date string to avoid timezone issues
-    const [year, month, day] = formData.date.split('-');
-    const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-
     const newPayout: Transaction = {
       id: payout?.id || generateId(),
       restaurantId: payout?.restaurantId || restaurantId,
-      date: dateObj,
+      date: formData.date,
       type: 'payout',
       category: 'Payout',
       amount: parseFloat(formData.amount.toString()),
