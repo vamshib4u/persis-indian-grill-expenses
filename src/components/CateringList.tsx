@@ -1,7 +1,7 @@
 'use client';
 
 import { CateringOrder } from '@/types';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, parseDateOnly } from '@/lib/utils';
 import { Edit2, Trash2 } from 'lucide-react';
 
 interface CateringListProps {
@@ -21,7 +21,7 @@ const formatDateTime = (value: Date | string) =>
 
 const formatDateOnly = (value?: Date | string) => {
   if (!value) return '-';
-  const date = new Date(value);
+  const date = parseDateOnly(value);
   if (Number.isNaN(date.getTime())) return '-';
   return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 };

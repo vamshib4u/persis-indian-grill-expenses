@@ -9,7 +9,7 @@ import { PersistenceStatusCard } from '@/components/PersistenceStatusCard';
 import { isStorageLoaded, isStorageLoading, storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, parseDateOnly } from '@/lib/utils';
 import { endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function ExpensesPage() {
@@ -38,11 +38,11 @@ export default function ExpensesPage() {
     const monthEnd = endOfMonth(monthStart);
 
     const monthlyTransactions = allTransactions.filter(transaction =>
-      isWithinInterval(new Date(transaction.date), { start: monthStart, end: monthEnd })
+      isWithinInterval(parseDateOnly(transaction.date), { start: monthStart, end: monthEnd })
     );
     const monthlyExpenses = monthlyTransactions.filter(t => t.type === 'expense');
     return {
-      expenses: monthlyExpenses.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+      expenses: monthlyExpenses.sort((a, b) => parseDateOnly(a.date).getTime() - parseDateOnly(b.date).getTime()),
       allSales,
       allTransactions,
       allCateringOrders,

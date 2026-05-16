@@ -10,7 +10,7 @@ import { PersistenceStatusCard } from '@/components/PersistenceStatusCard';
 import { isStorageLoaded, isStorageLoading, storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
 import { Plus, DollarSign, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, parseDateOnly } from '@/lib/utils';
 import { endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function SalesPage() {
@@ -39,14 +39,14 @@ export default function SalesPage() {
     const monthEnd = endOfMonth(monthStart);
 
     const monthlySales = allSales.filter(sale =>
-      isWithinInterval(new Date(sale.date), { start: monthStart, end: monthEnd })
+      isWithinInterval(parseDateOnly(sale.date), { start: monthStart, end: monthEnd })
     );
     const monthlyTransactions = allTransactions.filter(transaction =>
-      isWithinInterval(new Date(transaction.date), { start: monthStart, end: monthEnd })
+      isWithinInterval(parseDateOnly(transaction.date), { start: monthStart, end: monthEnd })
     );
 
     return {
-      sales: monthlySales.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+      sales: monthlySales.sort((a, b) => parseDateOnly(a.date).getTime() - parseDateOnly(b.date).getTime()),
       transactions: monthlyTransactions,
       allSales,
       allTransactions,

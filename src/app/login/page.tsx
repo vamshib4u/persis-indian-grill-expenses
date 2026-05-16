@@ -3,6 +3,7 @@
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LockKeyhole } from 'lucide-react';
+import { storage } from '@/lib/storage';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -29,6 +30,7 @@ export default function LoginPage() {
         return;
       }
 
+      await storage.load(true);
       router.replace('/dashboard');
       router.refresh();
     } catch {

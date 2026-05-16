@@ -119,7 +119,15 @@ const getSql = () => {
 };
 
 const hashPassword = (password: string) => createHash('sha256').update(password).digest('hex');
-const toDateOnly = (value: Date) => value.toISOString().slice(0, 10);
+const toDateOnly = (value: unknown) => {
+  if (typeof value === 'string') {
+    const match = value.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) return match[1];
+  }
+
+  const date = value instanceof Date ? value : new Date(String(value));
+  return date.toISOString().slice(0, 10);
+};
 const toBoolean = (value: unknown) => value === true || value === 'true' || value === 't' || value === 1;
 
 const syncSeedUser = async (
@@ -207,7 +215,7 @@ const mapSale = (sale: SaleInput): DailySales => {
   return {
     id: parsed.id,
     restaurantId: parsed.restaurantId,
-    date: toDateOnly(parsed.date),
+    date: toDateOnly(sale.date),
     squareSales: parsed.squareSales,
     cashCollected: parsed.cashCollected,
     cashHolder: parsed.cashHolder,
@@ -221,7 +229,7 @@ const mapTransaction = (transaction: TransactionInput): Transaction => {
   return {
     id: parsed.id,
     restaurantId: parsed.restaurantId,
-    date: toDateOnly(parsed.date),
+    date: toDateOnly(transaction.date),
     type: parsed.type,
     category: parsed.category,
     amount: parsed.amount,
@@ -243,10 +251,10 @@ const mapCateringOrder = (order: CateringOrderInput): CateringOrder => {
     readyAt: parsed.readyAt.toISOString(),
     fulfillmentType: parsed.fulfillmentType,
     depositAmount: parsed.depositAmount,
-    depositPaidDate: parsed.depositPaidDate ? parsed.depositPaidDate.toISOString() : '',
+    depositPaidDate: parsed.depositPaidDate ? toDateOnly(order.depositPaidDate) : '',
     depositCashHolder: parsed.depositCashHolder ?? '',
     finalPaymentAmount: parsed.finalPaymentAmount,
-    finalPaymentDate: parsed.finalPaymentDate ? parsed.finalPaymentDate.toISOString() : '',
+    finalPaymentDate: parsed.finalPaymentDate ? toDateOnly(order.finalPaymentDate) : '',
     finalPaymentCashHolder: parsed.finalPaymentCashHolder ?? '',
     notes: parsed.notes ?? '',
     createdAt: parsed.createdAt.toISOString(),

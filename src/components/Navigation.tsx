@@ -12,13 +12,15 @@ export const Navigation = () => {
   const [isOpen, setIsOpen] = useState(false);
   const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
 
+  useEffect(() => {
+    if (pathname !== '/login') {
+      void storage.load().catch(() => {});
+    }
+  }, [pathname]);
+
   if (pathname === '/login') {
     return null;
   }
-
-  useEffect(() => {
-    void storage.load().catch(() => {});
-  }, []);
 
   void storageVersion;
   const session = storage.getSession();
@@ -34,6 +36,7 @@ export const Navigation = () => {
   const isActive = (href: string) => pathname === href;
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
+    storage.reset();
     router.replace('/login');
     router.refresh();
   };

@@ -90,6 +90,18 @@ const getActiveRestaurantId = () => {
 };
 
 export const storage = {
+  reset() {
+    salesCache = [];
+    transactionsCache = [];
+    cateringOrdersCache = [];
+    cashHoldersCache = [];
+    sessionCache = null;
+    initialized = false;
+    loading = false;
+    loadPromise = null;
+    notifyChange();
+  },
+
   async load(force = false) {
     if (typeof window === 'undefined') return;
     if (loadPromise && !force) return loadPromise;

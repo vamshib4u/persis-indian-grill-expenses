@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Transaction } from '@/types';
-import { generateId } from '@/lib/utils';
+import { generateId, toDateInputValue } from '@/lib/utils';
 import { X } from 'lucide-react';
 
 const EXPENSE_CATEGORIES = [
@@ -38,7 +38,7 @@ export const TransactionForm = ({
   fixedType,
 }: TransactionFormProps) => {
   const [formData, setFormData] = useState({
-    date: transaction ? new Date(transaction.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    date: toDateInputValue(transaction?.date),
     type: transaction?.type || fixedType || 'expense',
     category: transaction?.category || '',
     amount: transaction?.amount || 0,
@@ -55,13 +55,10 @@ export const TransactionForm = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const [year, month, day] = formData.date.split('-');
-    const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-
     const newTransaction: Transaction = {
       id: transaction?.id || generateId(),
       restaurantId: transaction?.restaurantId || restaurantId,
-      date: dateObj,
+      date: formData.date,
       type: (fixedType || formData.type) as 'expense' | 'payout',
       category: formData.category,
       amount: parseFloat(formData.amount.toString()),

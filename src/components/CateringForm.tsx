@@ -2,18 +2,8 @@
 
 import { useState } from 'react';
 import { CateringOrder } from '@/types';
-import { generateId } from '@/lib/utils';
+import { generateId, toDateInputValue } from '@/lib/utils';
 import { X } from 'lucide-react';
-
-const toLocalDateInput = (value?: Date | string) => {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
 
 const toLocalDateTimeInput = (value?: Date | string) => {
   if (!value) return '';
@@ -46,10 +36,10 @@ export const CateringForm = ({
     readyAt: cateringOrder ? toLocalDateTimeInput(cateringOrder.readyAt) : toLocalDateTimeInput(new Date()),
     fulfillmentType: cateringOrder?.fulfillmentType || 'pickup',
     depositAmount: cateringOrder?.depositAmount || 0,
-    depositPaidDate: toLocalDateInput(cateringOrder?.depositPaidDate),
+    depositPaidDate: cateringOrder?.depositPaidDate ? toDateInputValue(cateringOrder.depositPaidDate) : '',
     depositCashHolder: cateringOrder?.depositCashHolder || '',
     finalPaymentAmount: cateringOrder?.finalPaymentAmount || 0,
-    finalPaymentDate: toLocalDateInput(cateringOrder?.finalPaymentDate),
+    finalPaymentDate: cateringOrder?.finalPaymentDate ? toDateInputValue(cateringOrder.finalPaymentDate) : '',
     finalPaymentCashHolder: cateringOrder?.finalPaymentCashHolder || '',
     notes: cateringOrder?.notes || '',
   });
@@ -64,10 +54,10 @@ export const CateringForm = ({
       readyAt: new Date(formData.readyAt),
       fulfillmentType: formData.fulfillmentType as CateringOrder['fulfillmentType'],
       depositAmount: parseFloat(formData.depositAmount.toString()) || 0,
-      depositPaidDate: formData.depositPaidDate ? new Date(formData.depositPaidDate) : '',
+      depositPaidDate: formData.depositPaidDate || '',
       depositCashHolder: formData.depositCashHolder || '',
       finalPaymentAmount: parseFloat(formData.finalPaymentAmount.toString()) || 0,
-      finalPaymentDate: formData.finalPaymentDate ? new Date(formData.finalPaymentDate) : '',
+      finalPaymentDate: formData.finalPaymentDate || '',
       finalPaymentCashHolder: formData.finalPaymentCashHolder || '',
       notes: formData.notes || '',
       createdAt: cateringOrder?.createdAt || new Date(),

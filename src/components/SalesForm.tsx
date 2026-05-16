@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { DailySales } from '@/types';
-import { generateId } from '@/lib/utils';
+import { generateId, toDateInputValue } from '@/lib/utils';
 import { X } from 'lucide-react';
 
 interface SalesFormProps {
@@ -15,7 +15,7 @@ interface SalesFormProps {
 
 export const SalesForm = ({ sale, restaurantId, cashHolders, onSubmit, onClose }: SalesFormProps) => {
   const [formData, setFormData] = useState({
-    date: sale ? new Date(sale.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    date: toDateInputValue(sale?.date),
     squareSales: sale?.squareSales || 0,
     cashCollected: sale?.cashCollected || 0,
     cashHolder: sale?.cashHolder || '',
@@ -27,14 +27,10 @@ export const SalesForm = ({ sale, restaurantId, cashHolders, onSubmit, onClose }
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Parse date string to avoid timezone issues
-    const [year, month, day] = formData.date.split('-');
-    const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-    
     const newSale: DailySales = {
       id: sale?.id || generateId(),
       restaurantId: sale?.restaurantId || restaurantId,
-      date: dateObj,
+      date: formData.date,
       squareSales: parseFloat(formData.squareSales.toString()),
       cashCollected: parseFloat(formData.cashCollected.toString()),
       cashHolder: formData.cashHolder,
