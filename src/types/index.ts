@@ -93,6 +93,64 @@ export interface SessionData {
   restaurants: Restaurant[];
 }
 
+export type FoodCostRecordType = 'ingredient' | 'operating_cost' | 'menu_item';
+
+export interface IngredientPrice {
+  id: string;
+  restaurantId: string;
+  name: string;
+  itemCode?: string;
+  category?: string;
+  packageQuantity: number;
+  packageUnit: string;
+  packagePrice: number;
+  priceDate: Date | string;
+  source?: string;
+  notes?: string;
+  createdAt: Date | string;
+}
+
+export type OperatingCostType = 'employee' | 'utility' | 'rent' | 'packaging' | 'gas' | 'electricity' | 'other';
+export type PayCycle = 'hourly' | 'weekly' | 'biweekly' | 'monthly' | 'one_time';
+
+export interface OperatingCost {
+  id: string;
+  restaurantId: string;
+  costType: OperatingCostType;
+  name: string;
+  designation?: string;
+  amount: number;
+  payCycle: PayCycle;
+  hoursPerCycle: number;
+  monthlyAmount: number;
+  effectiveDate: Date | string;
+  notes?: string;
+  createdAt: Date | string;
+}
+
+export interface MenuIngredient {
+  ingredientName: string;
+  quantity: number;
+  unit: string;
+}
+
+export interface MenuItemCost {
+  id: string;
+  restaurantId: string;
+  name: string;
+  description: string;
+  servingSize: number;
+  servingUnit: string;
+  salePrice: number;
+  gasCost: number;
+  electricityCost: number;
+  packagingCost: number;
+  laborCost: number;
+  otherCost: number;
+  ingredients: MenuIngredient[];
+  createdAt: Date | string;
+}
+
 export interface DataExport {
   sales: DailySales[];
   transactions: Transaction[];
