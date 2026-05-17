@@ -45,7 +45,7 @@ const transactionSchema = z.object({
   id: z.string().min(1),
   restaurantId: z.string().min(1),
   date: z.coerce.date(),
-  type: z.enum(['expense', 'payout']),
+  type: z.enum(['expense', 'payout', 'transfer']),
   category: z.string().min(1),
   amount: z.coerce.number().finite(),
   description: z.string(),
@@ -169,6 +169,7 @@ type MenuItemCostInput = z.input<typeof menuItemCostSchema>;
 declare global {
   var __persisSchemaReady: Promise<void> | undefined;
   var __persisOperatingCostConstraintReady: Promise<void> | undefined;
+  var __persisTransactionTypeConstraintReady: Promise<void> | undefined;
 }
 
 const getSql = () => {
@@ -469,6 +470,22 @@ const ensureOperatingCostTypeConstraint = async () => {
   return globalThis.__persisOperatingCostConstraintReady;
 };
 
+const ensureTransactionTypeConstraint = async () => {
+  if (!globalThis.__persisTransactionTypeConstraintReady) {
+    globalThis.__persisTransactionTypeConstraintReady = (async () => {
+      const sql = getSql();
+      await sql`ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_type_check`;
+      await sql`
+        ALTER TABLE transactions
+        ADD CONSTRAINT transactions_type_check
+        CHECK (type IN ('expense', 'payout', 'transfer'))
+      `;
+    })();
+  }
+
+  return globalThis.__persisTransactionTypeConstraintReady;
+};
+
 export async function ensureSchema() {
   if (!globalThis.__persisSchemaReady) {
     globalThis.__persisSchemaReady = (async () => {
@@ -550,7 +567,7 @@ export async function ensureSchema() {
         CREATE TABLE IF NOT EXISTS transactions (
           id TEXT PRIMARY KEY,
           transaction_date DATE NOT NULL,
-          type TEXT NOT NULL CHECK (type IN ('expense', 'payout')),
+          type TEXT NOT NULL CHECK (type IN ('expense', 'payout', 'transfer')),
           category TEXT NOT NULL,
           amount NUMERIC(12, 2) NOT NULL,
           description TEXT NOT NULL DEFAULT '',
@@ -561,6 +578,13 @@ export async function ensureSchema() {
           notes TEXT,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
+      `;
+
+      await sql`ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_type_check`;
+      await sql`
+        ALTER TABLE transactions
+        ADD CONSTRAINT transactions_type_check
+        CHECK (type IN ('expense', 'payout', 'transfer'))
       `;
 
       await sql`
@@ -1204,6 +1228,7 @@ export async function deleteSale(id: string, restaurantId: string) {
 
 export async function listTransactions(restaurantId: string): Promise<Transaction[]> {
   await ensureSchema();
+  await ensureTransactionTypeConstraint();
   const sql = getSql();
   const rows = (await sql`
     SELECT
@@ -1231,6 +1256,7 @@ export async function listTransactions(restaurantId: string): Promise<Transactio
 export async function createTransaction(input: TransactionInput): Promise<Transaction> {
   const transaction = transactionSchema.parse(input);
   await ensureSchema();
+  await ensureTransactionTypeConstraint();
   const sql = getSql();
 
   const [row] = (await sql`
@@ -1286,6 +1312,7 @@ export async function createTransaction(input: TransactionInput): Promise<Transa
 export async function updateTransaction(input: TransactionInput): Promise<Transaction | null> {
   const transaction = transactionSchema.parse(input);
   await ensureSchema();
+  await ensureTransactionTypeConstraint();
   const sql = getSql();
 
   const rows = (await sql`
@@ -1785,6 +1812,7 @@ export async function replaceRestaurantData(input: {
     cateringOrderSchema.parse({ ...order, restaurantId: input.restaurantId })
   );
   await ensureSchema();
+  await ensureTransactionTypeConstraint();
   const sql = getSql();
 
   await sql.transaction((txn) => [

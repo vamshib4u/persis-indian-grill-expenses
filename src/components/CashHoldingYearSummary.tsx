@@ -45,6 +45,8 @@ export const CashHoldingYearSummary = ({
               <th className="px-4 py-2 text-right font-semibold text-gray-800">Opening (Jan)</th>
               <th className="px-4 py-2 text-right font-semibold text-gray-800">Collected (Year)</th>
               <th className="px-4 py-2 text-right font-semibold text-gray-800">Expenses (Year)</th>
+              <th className="px-4 py-2 text-right font-semibold text-gray-800">Transfers In</th>
+              <th className="px-4 py-2 text-right font-semibold text-gray-800">Transfers Out</th>
               <th className="px-4 py-2 text-right font-semibold text-gray-800">Closing (Dec)</th>
             </tr>
           </thead>
@@ -55,6 +57,8 @@ export const CashHoldingYearSummary = ({
                 <td className="px-4 py-2 text-right text-gray-700">{formatCurrency(row.opening)}</td>
                 <td className="px-4 py-2 text-right text-gray-900">{formatCurrency(row.collected)}</td>
                 <td className="px-4 py-2 text-right text-red-600">{formatCurrency(row.expenses)}</td>
+                <td className="px-4 py-2 text-right text-green-700">{formatCurrency(row.transfersIn)}</td>
+                <td className="px-4 py-2 text-right text-orange-700">{formatCurrency(row.transfersOut)}</td>
                 <td className="px-4 py-2 text-right font-semibold text-gray-900">
                   {formatCurrency(row.closing)}
                 </td>
@@ -67,6 +71,8 @@ export const CashHoldingYearSummary = ({
               <td className="px-4 py-2 text-right font-semibold text-gray-900">{formatCurrency(summary.totals.opening)}</td>
               <td className="px-4 py-2 text-right font-semibold text-gray-900">{formatCurrency(summary.totals.collected)}</td>
               <td className="px-4 py-2 text-right font-semibold text-gray-900">{formatCurrency(summary.totals.expenses)}</td>
+              <td className="px-4 py-2 text-right font-semibold text-gray-900">{formatCurrency(summary.totals.transfersIn)}</td>
+              <td className="px-4 py-2 text-right font-semibold text-gray-900">{formatCurrency(summary.totals.transfersOut)}</td>
               <td className="px-4 py-2 text-right font-semibold text-gray-900">{formatCurrency(summary.totals.closing)}</td>
             </tr>
           </tfoot>

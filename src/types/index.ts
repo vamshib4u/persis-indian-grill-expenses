@@ -18,7 +18,7 @@ export interface Transaction {
   id: string;
   restaurantId: string;
   date: Date | string;
-  type: 'expense' | 'payout';
+  type: 'expense' | 'payout' | 'transfer';
   category: string;
   amount: number;
   description: string;
