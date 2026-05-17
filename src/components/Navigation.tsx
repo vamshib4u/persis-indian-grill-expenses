@@ -10,6 +10,7 @@ export const Navigation = () => {
   const pathname = usePathname();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+  const [switchingRestaurantId, setSwitchingRestaurantId] = useState('');
   const storageVersion = useSyncExternalStore(subscribeToStorage, getStorageVersion, getStorageVersion);
 
   useEffect(() => {
@@ -25,6 +26,14 @@ export const Navigation = () => {
   void storageVersion;
   const session = storage.getSession();
   const activeRestaurant = storage.getActiveRestaurant();
+  const navRestaurantName = activeRestaurant?.name === 'Persis Indian Grill'
+    ? 'Persis'
+    : activeRestaurant?.name || 'Persis';
+  const formatRestaurantOption = (restaurant: { name: string; slug: string }) => {
+    if (restaurant.slug === 'ballwin') return 'Ballwin';
+    if (restaurant.slug === 'ofallon') return "O'Fallon";
+    return restaurant.name;
+  };
 
   const links = [
     { href: '/dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -42,9 +51,15 @@ export const Navigation = () => {
   };
 
   const handleRestaurantChange = async (restaurantId: string) => {
-    await storage.switchRestaurant(restaurantId);
-    router.refresh();
+    setSwitchingRestaurantId(restaurantId);
+    try {
+      await storage.switchRestaurant(restaurantId);
+      window.location.reload();
+    } finally {
+      setSwitchingRestaurantId('');
+    }
   };
+  const selectedRestaurantId = switchingRestaurantId || session?.activeRestaurantId || '';
 
   return (
     <nav className="bg-white shadow-sm sticky top-0 z-40">
@@ -52,20 +67,21 @@ export const Navigation = () => {
         <div className="flex justify-between items-center h-16">
           <Link href="/" className="flex items-center gap-2 font-bold text-xl text-gray-900">
             <BarChart3 size={24} className="text-blue-600" />
-            <span>{activeRestaurant?.name || 'Persis Grill'}</span>
+            <span>{navRestaurantName}</span>
           </Link>
 
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center gap-4">
             {session && session.restaurants.length > 1 && (
               <select
-                value={session.activeRestaurantId}
+                value={selectedRestaurantId}
                 onChange={(event) => void handleRestaurantChange(event.target.value)}
+                disabled={Boolean(switchingRestaurantId)}
                 className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700"
               >
                 {session.restaurants.map((restaurant) => (
                   <option key={restaurant.id} value={restaurant.id}>
-                    {restaurant.name}
+                    {formatRestaurantOption(restaurant)}
                   </option>
                 ))}
               </select>
@@ -137,13 +153,14 @@ export const Navigation = () => {
             {session && session.restaurants.length > 1 && (
               <div className="px-3">
                 <select
-                  value={session.activeRestaurantId}
+                  value={selectedRestaurantId}
                   onChange={(event) => void handleRestaurantChange(event.target.value)}
+                  disabled={Boolean(switchingRestaurantId)}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700"
                 >
                   {session.restaurants.map((restaurant) => (
                     <option key={restaurant.id} value={restaurant.id}>
-                      {restaurant.name}
+                      {formatRestaurantOption(restaurant)}
                     </option>
                   ))}
                 </select>

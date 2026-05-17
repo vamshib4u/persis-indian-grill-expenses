@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { UserRole } from '@/types';
 
 const SESSION_COOKIE = 'persis_session';
-const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 7;
+const SESSION_DURATION_MS = 1000 * 60 * 60 * 12;
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -44,6 +44,19 @@ const base64UrlDecodeText = (input: string) => {
   return textDecoder.decode(base64ToBytes(`${normalized}${padding}`));
 };
 
+const timingSafeEqual = (left: string, right: string) => {
+  const leftBytes = textEncoder.encode(left);
+  const rightBytes = textEncoder.encode(right);
+  if (leftBytes.length !== rightBytes.length) return false;
+
+  let diff = 0;
+  for (let index = 0; index < leftBytes.length; index += 1) {
+    diff |= leftBytes[index] ^ rightBytes[index];
+  }
+
+  return diff === 0;
+};
+
 const sign = async (payload: string) => {
   const key = await crypto.subtle.importKey(
     'raw',
@@ -78,9 +91,15 @@ export const verifySessionToken = async (token: string | undefined) => {
   const [encodedPayload, signature] = token.split('.');
   if (!encodedPayload || !signature) return null;
 
-  const payload = base64UrlDecodeText(encodedPayload);
+  let payload: string;
+  try {
+    payload = base64UrlDecodeText(encodedPayload);
+  } catch {
+    return null;
+  }
+
   const expectedSignature = await sign(payload);
-  if (signature !== expectedSignature) return null;
+  if (!timingSafeEqual(signature, expectedSignature)) return null;
 
   let parsed: SessionTokenPayload;
   try {
@@ -91,7 +110,7 @@ export const verifySessionToken = async (token: string | undefined) => {
 
   if (
     !parsed.userId ||
-    !parsed.role ||
+    !['restaurant_admin', 'super_admin'].includes(parsed.role) ||
     !parsed.activeRestaurantId ||
     Number.isNaN(parsed.expiresAt) ||
     Date.now() > parsed.expiresAt

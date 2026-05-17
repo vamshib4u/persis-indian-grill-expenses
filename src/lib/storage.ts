@@ -102,7 +102,7 @@ export const storage = {
     notifyChange();
   },
 
-  async load(force = false) {
+  async load(force = false, restaurantId?: string) {
     if (typeof window === 'undefined') return;
     if (loadPromise && !force) return loadPromise;
     if (initialized && !force) return;
@@ -111,7 +111,11 @@ export const storage = {
     setPostgresStatus('loading', 'Loading from Postgres');
     notifyChange();
 
-    loadPromise = request<BootstrapPayload>('/api/bootstrap')
+    const bootstrapUrl = restaurantId
+      ? `/api/bootstrap?restaurantId=${encodeURIComponent(restaurantId)}`
+      : '/api/bootstrap';
+
+    loadPromise = request<BootstrapPayload>(bootstrapUrl)
       .then((payload) => {
         replaceCache(payload);
         setPostgresStatus('saved', 'Connected to Postgres');
@@ -143,7 +147,7 @@ export const storage = {
     });
     sessionCache = payload.session;
     notifyChange();
-    await storage.load(true);
+    await storage.load(true, restaurantId);
   },
 
   async addSale(sale: DailySales) {

@@ -43,7 +43,7 @@ export async function PATCH(request: NextRequest) {
   response.cookies.set(getSessionCookieName(), token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'strict',
     path: '/',
     maxAge: getSessionMaxAge(),
   });

@@ -18,7 +18,7 @@ import {
 
 const DEFAULT_PRIMARY_RESTAURANT = {
   id: 'restaurant-1',
-  name: 'Ballwin',
+  name: 'Persis Indian Grill',
   slug: 'ballwin',
 };
 

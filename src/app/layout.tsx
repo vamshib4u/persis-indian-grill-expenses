@@ -4,8 +4,8 @@ import { Navigation } from '@/components/Navigation';
 import { Toaster } from 'react-hot-toast';
 
 export const metadata: Metadata = {
-  title: 'Persis Locations - Revenue Management',
-  description: 'Track daily sales, expenses, payouts, and cash holders by restaurant location',
+  title: 'Persis Indian Grill - Revenue Management',
+  description: 'Track daily sales, expenses, payouts, cash holders, and food costs for Persis Indian Grill',
 };
 
 export default function RootLayout({

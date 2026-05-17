@@ -49,7 +49,7 @@ export default function LoginPage() {
           </div>
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Secure Login</h1>
-            <p className="text-sm text-slate-600">Sign in to access Persis Grill records.</p>
+            <p className="text-sm text-slate-600">Sign in to access Persis Indian Grill records.</p>
           </div>
         </div>
 

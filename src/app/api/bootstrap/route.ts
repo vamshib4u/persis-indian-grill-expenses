@@ -17,7 +17,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const restaurantId = session.activeRestaurantId;
+    const requestedRestaurantId = request.nextUrl.searchParams.get('restaurantId');
+    const restaurantId =
+      requestedRestaurantId && canAccessRestaurant(session, requestedRestaurantId)
+        ? requestedRestaurantId
+        : session.activeRestaurantId;
     const [sales, transactions, cateringOrders, cashHolders] = await Promise.all([
       listSales(restaurantId),
       listTransactions(restaurantId),
@@ -30,7 +34,10 @@ export async function GET(request: NextRequest) {
       transactions,
       cateringOrders,
       cashHolders,
-      session,
+      session: {
+        ...session,
+        activeRestaurantId: restaurantId,
+      },
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load data';

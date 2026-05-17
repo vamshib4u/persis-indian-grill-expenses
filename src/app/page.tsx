@@ -47,12 +47,12 @@ export default function Home() {
       <div className="max-w-6xl mx-auto px-4 py-16">
         {/* Header */}
         <div className="text-center mb-16">
-          <h1 className="text-5xl font-bold text-gray-900 mb-4">Persis Locations</h1>
+          <h1 className="text-5xl font-bold text-gray-900 mb-4">Persis Indian Grill</h1>
           <p className="text-xl text-gray-600 mb-8">
             Monthly Revenue & Expense Management
           </p>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            Track each restaurant separately with location-specific sales, expenses, cash holders,
+            Track restaurant sales, expenses, cash holders,
             and admin-managed access.
           </p>
         </div>
