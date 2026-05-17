@@ -2,7 +2,7 @@
 
 import { Transaction } from '@/types';
 import { formatDate, formatCurrency } from '@/lib/utils';
-import { Trash2, Edit2 } from 'lucide-react';
+import { ArrowRightLeft, Trash2, Edit2 } from 'lucide-react';
 
 interface TransactionsListProps {
   transactions: Transaction[];
@@ -11,6 +11,13 @@ interface TransactionsListProps {
 }
 
 export const TransactionsList = ({ transactions, onEdit, onDelete }: TransactionsListProps) => {
+  const totalExpenses = transactions
+    .filter((transaction) => transaction.type === 'expense')
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const totalTransfers = transactions
+    .filter((transaction) => transaction.type === 'transfer')
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+
   if (transactions.length === 0) {
     return (
       <div className="text-center py-8">
@@ -40,15 +47,21 @@ export const TransactionsList = ({ transactions, onEdit, onDelete }: Transaction
               <td className="px-4 py-2 text-gray-900">{formatDate(transaction.date)}</td>
               <td className="px-4 py-2">
                 <span className={`inline-block px-2 py-1 text-xs font-semibold rounded ${
-                  transaction.type === 'expense' 
-                    ? 'bg-red-100 text-red-800' 
-                    : 'bg-orange-100 text-orange-800'
+                  transaction.type === 'expense'
+                    ? 'bg-red-100 text-red-800'
+                    : transaction.type === 'transfer'
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-orange-100 text-orange-800'
                 }`}>
-                  {transaction.type === 'expense' ? 'Expense' : 'Payout'}
+                  {transaction.type === 'expense' ? 'Expense' : transaction.type === 'transfer' ? 'Transfer' : 'Payout'}
                 </span>
               </td>
               <td className="px-4 py-2 text-gray-900 font-medium">
-                {transaction.type === 'expense' ? transaction.category : transaction.payeeName}
+                {transaction.type === 'expense'
+                  ? transaction.category
+                  : transaction.type === 'transfer'
+                    ? `${transaction.spentBy || '-'} to ${transaction.payeeName || '-'}`
+                    : transaction.payeeName}
               </td>
               <td className="px-4 py-2 text-gray-700">
                 {transaction.type === 'expense' ? transaction.description : transaction.purpose}
@@ -56,7 +69,15 @@ export const TransactionsList = ({ transactions, onEdit, onDelete }: Transaction
               <td className="px-4 py-2 text-sm capitalize text-gray-800">
                 {transaction.paymentMethod.replace('_', ' ')}
               </td>
-              <td className="px-4 py-2 text-gray-900 font-medium">{transaction.spentBy || '-'}</td>
+              <td className="px-4 py-2 text-gray-900 font-medium">
+                {transaction.type === 'transfer' ? (
+                  <span className="inline-flex items-center gap-1">
+                    {transaction.spentBy || '-'} <ArrowRightLeft size={14} /> {transaction.payeeName || '-'}
+                  </span>
+                ) : (
+                  transaction.spentBy || '-'
+                )}
+              </td>
               <td className="px-4 py-2 text-right font-semibold text-gray-900">
                 {formatCurrency(transaction.amount)}
               </td>
@@ -82,13 +103,24 @@ export const TransactionsList = ({ transactions, onEdit, onDelete }: Transaction
         <tfoot className="bg-gray-100 border-t-2 border-gray-300">
           <tr>
             <td colSpan={6} className="px-4 py-3 font-bold text-gray-900 text-right">
-              TOTAL
+              TOTAL EXPENSES
             </td>
             <td className="px-4 py-3 text-right font-bold text-gray-900">
-              {formatCurrency(transactions.reduce((sum, t) => sum + t.amount, 0))}
+              {formatCurrency(totalExpenses)}
             </td>
             <td></td>
           </tr>
+          {totalTransfers > 0 && (
+            <tr>
+              <td colSpan={6} className="px-4 py-3 font-bold text-gray-900 text-right">
+                TOTAL TRANSFERS
+              </td>
+              <td className="px-4 py-3 text-right font-bold text-blue-700">
+                {formatCurrency(totalTransfers)}
+              </td>
+              <td></td>
+            </tr>
+          )}
         </tfoot>
       </table>
     </div>

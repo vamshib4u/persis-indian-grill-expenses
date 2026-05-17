@@ -2,19 +2,21 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Transaction } from '@/types';
-import { ExpensesList } from '@/components/ExpensesList';
+import { TransactionsList } from '@/components/TransactionsList';
 import { TransactionForm } from '@/components/TransactionForm';
+import { TransferForm } from '@/components/TransferForm';
 import { ExportButtons } from '@/components/ExportButtons';
 import { CashHoldingCards } from '@/components/CashHoldingCards';
 import { PersistenceStatusCard } from '@/components/PersistenceStatusCard';
 import { isStorageLoaded, isStorageLoading, storage, getStorageVersion, subscribeToStorage } from '@/lib/storage';
-import { Plus, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowRightLeft, Plus, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { formatCurrency, parseDateOnly } from '@/lib/utils';
 import { endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function TransactionsPage() {
   const [showForm, setShowForm] = useState(false);
+  const [showTransferForm, setShowTransferForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
@@ -42,7 +44,7 @@ export default function TransactionsPage() {
       .filter(transaction =>
         isWithinInterval(parseDateOnly(transaction.date), { start: monthStart, end: monthEnd })
       )
-      .filter(transaction => transaction.type === 'expense');
+      .filter(transaction => transaction.type === 'expense' || transaction.type === 'transfer');
     const monthlySales = allSales.filter(sale =>
       isWithinInterval(parseDateOnly(sale.date), { start: monthStart, end: monthEnd })
     );
@@ -63,12 +65,13 @@ export default function TransactionsPage() {
       if (editingTransaction) {
         await storage.updateTransaction(transaction.id, transaction);
         setEditingTransaction(null);
-        toast.success('Expense updated successfully');
+        toast.success(transaction.type === 'transfer' ? 'Transfer updated successfully' : 'Expense updated successfully');
       } else {
         await storage.addTransaction(transaction);
-        toast.success('Expense recorded successfully');
+        toast.success(transaction.type === 'transfer' ? 'Transfer recorded successfully' : 'Expense recorded successfully');
       }
       setShowForm(false);
+      setShowTransferForm(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save expense';
       toast.error(message);
@@ -77,7 +80,11 @@ export default function TransactionsPage() {
 
   const handleEditTransaction = (transaction: Transaction) => {
     setEditingTransaction(transaction);
-    setShowForm(true);
+    if (transaction.type === 'transfer') {
+      setShowTransferForm(true);
+    } else {
+      setShowForm(true);
+    }
   };
 
   const handleDeleteTransaction = async (id: string) => {
@@ -111,26 +118,43 @@ export default function TransactionsPage() {
   };
 
   const monthName = new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long' });
-  const totalExpenses = transactions.reduce((sum, t) => sum + t.amount, 0);
+  const totalExpenses = transactions
+    .filter(transaction => transaction.type === 'expense')
+    .reduce((sum, t) => sum + t.amount, 0);
+  const totalTransfers = transactions
+    .filter(transaction => transaction.type === 'transfer')
+    .reduce((sum, t) => sum + t.amount, 0);
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-center mb-8">
           <div>
             <h1 className="text-4xl font-bold text-gray-900">Transactions</h1>
-            <p className="text-gray-600">Track expense transactions</p>
+            <p className="text-gray-600">Track expenses and cash transfers between people</p>
           </div>
-          <button
-            onClick={() => {
-              setEditingTransaction(null);
-              setShowForm(true);
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            <Plus size={20} />
-            Add Expense
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => {
+                setEditingTransaction(null);
+                setShowTransferForm(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2 border border-blue-600 text-blue-700 rounded-lg hover:bg-blue-50"
+            >
+              <ArrowRightLeft size={20} />
+              Transfer Cash
+            </button>
+            <button
+              onClick={() => {
+                setEditingTransaction(null);
+                setShowForm(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              <Plus size={20} />
+              Add Expense
+            </button>
+          </div>
         </div>
 
         {/* Month Selector */}
@@ -190,11 +214,11 @@ export default function TransactionsPage() {
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-600 text-sm">Total Outflow</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-2">{formatCurrency(totalExpenses)}</p>
+                  <p className="text-gray-600 text-sm">Cash Transferred</p>
+                  <p className="text-2xl font-bold text-blue-700 mt-2">{formatCurrency(totalTransfers)}</p>
                 </div>
-                <div className="bg-gray-100 p-3 rounded-lg">
-                  <TrendingDown size={24} className="text-gray-600" />
+                <div className="bg-blue-100 p-3 rounded-lg">
+                  <ArrowRightLeft size={24} className="text-blue-700" />
                 </div>
               </div>
             </div>
@@ -212,8 +236,8 @@ export default function TransactionsPage() {
 
         <div className="bg-white rounded-lg shadow">
           {transactions.length > 0 ? (
-            <ExpensesList
-              expenses={transactions}
+            <TransactionsList
+              transactions={transactions}
               onEdit={handleEditTransaction}
               onDelete={handleDeleteTransaction}
             />
@@ -241,6 +265,18 @@ export default function TransactionsPage() {
           onSubmit={handleAddTransaction}
           onClose={() => {
             setShowForm(false);
+            setEditingTransaction(null);
+          }}
+        />
+      )}
+      {showTransferForm && (
+        <TransferForm
+          transaction={editingTransaction}
+          restaurantId={activeRestaurantId}
+          cashHolders={cashHolders.filter(holder => holder.active).map(holder => holder.name)}
+          onSubmit={handleAddTransaction}
+          onClose={() => {
+            setShowTransferForm(false);
             setEditingTransaction(null);
           }}
         />

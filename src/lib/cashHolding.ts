@@ -6,6 +6,8 @@ export type CashHoldingRow = {
   opening: number;
   collected: number;
   expenses: number;
+  transfersIn: number;
+  transfersOut: number;
   closing: number;
 };
 
@@ -48,6 +50,10 @@ const buildOrderedHolders = (
     if (transaction.type === 'expense' && transaction.paymentMethod === 'cash') {
       holderSet.add(normalizeHolder(transaction.spentBy));
     }
+    if (transaction.type === 'transfer') {
+      holderSet.add(normalizeHolder(transaction.spentBy));
+      holderSet.add(normalizeHolder(transaction.payeeName));
+    }
   });
   cateringOrders.forEach((order) => {
     if (order.depositAmount > 0) holderSet.add(normalizeHolder(order.depositCashHolder));
@@ -82,19 +88,28 @@ export const getCashHoldingSummary = (
   const salesByMonth = new Map<string, Map<string, number>>();
   const expensesByMonth = new Map<string, Map<string, number>>();
   const cateringByMonth = new Map<string, Map<string, number>>();
+  const transfersInByMonth = new Map<string, Map<string, number>>();
+  const transfersOutByMonth = new Map<string, Map<string, number>>();
 
   sales.forEach((sale) => {
     addToBucket(salesByMonth, toMonthKey(parseDateOnly(sale.date)), normalizeHolder(sale.cashHolder), sale.cashCollected || 0);
   });
 
   transactions.forEach((transaction) => {
-    if (transaction.type !== 'expense' || transaction.paymentMethod !== 'cash') return;
-    addToBucket(
-      expensesByMonth,
-      toMonthKey(parseDateOnly(transaction.date)),
-      normalizeHolder(transaction.spentBy),
-      transaction.amount || 0
-    );
+    if (transaction.type === 'expense' && transaction.paymentMethod === 'cash') {
+      addToBucket(
+        expensesByMonth,
+        toMonthKey(parseDateOnly(transaction.date)),
+        normalizeHolder(transaction.spentBy),
+        transaction.amount || 0
+      );
+    }
+
+    if (transaction.type === 'transfer') {
+      const monthKey = toMonthKey(parseDateOnly(transaction.date));
+      addToBucket(transfersOutByMonth, monthKey, normalizeHolder(transaction.spentBy), transaction.amount || 0);
+      addToBucket(transfersInByMonth, monthKey, normalizeHolder(transaction.payeeName), transaction.amount || 0);
+    }
   });
 
   cateringOrders.forEach((order) => {
@@ -130,17 +145,19 @@ export const getCashHoldingSummary = (
   if (!allDates.length) {
     const rows = orderedHolders.map((name) => {
       const opening = configuredStartingAmounts.get(name) || 0;
-      return { name, opening, collected: 0, expenses: 0, closing: opening };
+      return { name, opening, collected: 0, expenses: 0, transfersIn: 0, transfersOut: 0, closing: opening };
     });
     const totals = rows.reduce(
       (acc, row) => {
         acc.opening += row.opening;
         acc.collected += row.collected;
         acc.expenses += row.expenses;
+        acc.transfersIn += row.transfersIn;
+        acc.transfersOut += row.transfersOut;
         acc.closing += row.closing;
         return acc;
       },
-      { name: 'Total', opening: 0, collected: 0, expenses: 0, closing: 0 }
+      { name: 'Total', opening: 0, collected: 0, expenses: 0, transfersIn: 0, transfersOut: 0, closing: 0 }
     );
     return { rows, totals };
   }
@@ -157,14 +174,18 @@ export const getCashHoldingSummary = (
     const salesForMonth = salesByMonth.get(monthKey) || new Map<string, number>();
     const expensesForMonth = expensesByMonth.get(monthKey) || new Map<string, number>();
     const cateringForMonth = cateringByMonth.get(monthKey) || new Map<string, number>();
+    const transfersInForMonth = transfersInByMonth.get(monthKey) || new Map<string, number>();
+    const transfersOutForMonth = transfersOutByMonth.get(monthKey) || new Map<string, number>();
 
     const rows = orderedHolders.map((name) => {
       const opening = running.get(name) || 0;
       const collected = (salesForMonth.get(name) || 0) + (cateringForMonth.get(name) || 0);
       const expenses = expensesForMonth.get(name) || 0;
-      const closing = opening + collected - expenses;
+      const transfersIn = transfersInForMonth.get(name) || 0;
+      const transfersOut = transfersOutForMonth.get(name) || 0;
+      const closing = opening + collected + transfersIn - expenses - transfersOut;
       running.set(name, closing);
-      return { name, opening, collected, expenses, closing };
+      return { name, opening, collected, expenses, transfersIn, transfersOut, closing };
     });
 
     if (current.getTime() === targetMonthStart.getTime()) {
@@ -180,10 +201,12 @@ export const getCashHoldingSummary = (
       acc.opening += row.opening;
       acc.collected += row.collected;
       acc.expenses += row.expenses;
+      acc.transfersIn += row.transfersIn;
+      acc.transfersOut += row.transfersOut;
       acc.closing += row.closing;
       return acc;
     },
-    { name: 'Total', opening: 0, collected: 0, expenses: 0, closing: 0 }
+    { name: 'Total', opening: 0, collected: 0, expenses: 0, transfersIn: 0, transfersOut: 0, closing: 0 }
   );
 
   return { rows: targetRows, totals };
@@ -203,6 +226,8 @@ export const getCashHoldingYearSnapshot = (
   const salesByYear = new Map<string, number>();
   const expensesByYear = new Map<string, number>();
   const cateringByYear = new Map<string, number>();
+  const transfersInByYear = new Map<string, number>();
+  const transfersOutByYear = new Map<string, number>();
 
   sales.forEach((sale) => {
     if (parseDateOnly(sale.date).getFullYear() !== year) return;
@@ -211,10 +236,17 @@ export const getCashHoldingYearSnapshot = (
   });
 
   transactions.forEach((transaction) => {
-    if (transaction.type !== 'expense' || transaction.paymentMethod !== 'cash') return;
     if (parseDateOnly(transaction.date).getFullYear() !== year) return;
-    const holder = normalizeHolder(transaction.spentBy);
-    expensesByYear.set(holder, (expensesByYear.get(holder) || 0) + (transaction.amount || 0));
+    if (transaction.type === 'expense' && transaction.paymentMethod === 'cash') {
+      const holder = normalizeHolder(transaction.spentBy);
+      expensesByYear.set(holder, (expensesByYear.get(holder) || 0) + (transaction.amount || 0));
+    }
+    if (transaction.type === 'transfer') {
+      const fromHolder = normalizeHolder(transaction.spentBy);
+      const toHolder = normalizeHolder(transaction.payeeName);
+      transfersOutByYear.set(fromHolder, (transfersOutByYear.get(fromHolder) || 0) + (transaction.amount || 0));
+      transfersInByYear.set(toHolder, (transfersInByYear.get(toHolder) || 0) + (transaction.amount || 0));
+    }
   });
 
   cateringOrders.forEach((order) => {
@@ -239,6 +271,8 @@ export const getCashHoldingYearSnapshot = (
     opening: configuredStartingAmounts.get(name) || 0,
     collected: (salesByYear.get(name) || 0) + (cateringByYear.get(name) || 0),
     expenses: expensesByYear.get(name) || 0,
+    transfersIn: transfersInByYear.get(name) || 0,
+    transfersOut: transfersOutByYear.get(name) || 0,
     closing: summary.rows.find((row) => row.name === name)?.closing ?? (configuredStartingAmounts.get(name) || 0),
   }));
 
@@ -247,10 +281,12 @@ export const getCashHoldingYearSnapshot = (
       acc.opening += row.opening;
       acc.collected += row.collected;
       acc.expenses += row.expenses;
+      acc.transfersIn += row.transfersIn;
+      acc.transfersOut += row.transfersOut;
       acc.closing += row.closing;
       return acc;
     },
-    { name: 'Total', opening: 0, collected: 0, expenses: 0, closing: 0 }
+    { name: 'Total', opening: 0, collected: 0, expenses: 0, transfersIn: 0, transfersOut: 0, closing: 0 }
   );
 
   return { rows, totals };
